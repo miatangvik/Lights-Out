@@ -1,12 +1,6 @@
+const GRAVITY = 0.3;
 var jumping = false;
-var gravity = 0.3;
 var platformHeight = 20;
-
-var player = {
-    width: 20,
-    height: 50
-};
-
 var platforms = [];
  
 platforms.push({
@@ -33,24 +27,22 @@ function setup() {
     }
     
     // Create player
-    player = createSprite(150, 50, player.width, player.height);
+    player = createSprite(150, 50, 20, 30);
     player.shapeColor = color(0);
 }
 
-function draw() {
-    console.log("X: " + player.position.x);
-    console.log("Y: " + player.position.y);
-    
+function draw() {    
     background("#86d0fd");
     
     for (var i = 0; i < platforms.length; i++) {
         player.collide(platforms[i], function() {
             player.position.y = player.position.y;
+            player.velocity.y = 0;
         });
     }
     
     // Add gravity
-    //player.addSpeed(0.07, 90);
+    player.velocity.y += GRAVITY;
     
     // Move player with keys
     if (keyIsDown(RIGHT_ARROW)) {
@@ -62,15 +54,12 @@ function draw() {
     }
     
     if (keyWentDown(' ')) {
-        console.log("jump");
         if (!jumping) {
             jumping = true;
-            player.velocity.y = -3*2;
+            player.velocity.y = -3 * 2;
         }
         jumping = false;
     }
-        
-    player.velocity.y += gravity;
     
     drawSprites();
 }
