@@ -6,7 +6,7 @@ var platforms;
 var fallingObjects;
 var items;
 
-var platformHeight = 1;
+var platformHeight = 10;
 var platformFullHeight = 1000;
 
 var backgroundImg;
@@ -88,9 +88,9 @@ function setup() {
     // Create platforms
     for (var i = 0; i < platformsArray.length; i++) {
         var newPlatform = createSprite(platformsArray[i].x, platformsArray[i].y, platformsArray[i].width, platformsArray[i].height);
-        newPlatform.rotation = 20;
         newPlatform.rotateToDirection = true;
         newPlatform.shapeColor = color(25, 25, 25);
+        newPlatform.debug = true;
         platforms.add(newPlatform);
     }
 
@@ -117,14 +117,19 @@ function setup() {
     playerJumping = loadImage("assets/dude-jumping.png");
 
     player.addImage(playerForwards);
+    
+    player.debug = true;
+    
+    platforms[0].rotation = 30;
+    platforms[0].setCollider("rectangle", 0, 0, 300, 100);
+    platforms[0].collider.rotation = -90;
+    console.log(platforms[0].collider.rotation);
 }
 
 function draw() {
     background("#191919");
     image(backgroundImg, 0 - width / 2, 0 - height / 2);
-
-    platforms[0].debug = true;
-
+    
     // Add gravity
     player.velocity.y += GRAVITY;
 
