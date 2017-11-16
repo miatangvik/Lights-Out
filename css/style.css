@@ -7,24 +7,35 @@ body {
     height: 100vh;
     width: 100vw;
     background: #262626;
-    user-select: none;
     font-family: 'Righteous', cursive;
     
 }
 
 #ui{
-    width: 800px;
-    height: 480px;
+    width: 1000px;
+    height: 500px;
     position: absolute;
-    cursor: none;
+    
 }
 
 #score{
     position: absolute;
     margin: 0px;
     padding: 0px;
-    bottom: 50px;
-    left: 60px;
-    color: #262626;
+    bottom: 30px;
+    left: 40px;
+    color: white;
     font-size: 36px;
+}
+
+#keys {
+    font-family: 'Helvetica';
+    position: absolute;
+    bottom: -50px;
+    left: 0px;
+    color: white;
+}
+
+#keys span{
+    margin: 0px 15px;
 }
