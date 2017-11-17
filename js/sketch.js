@@ -46,7 +46,7 @@ platformsArray.push({
     height: 530
 });
 
-
+// Falling objects
 /*fallingObjectsArray.push({
     x: 500,
     y: 0,
@@ -122,7 +122,6 @@ function setup() {
     for (var i = 0; i < platformsArray.length; i++) {
         var newPlatform = createSprite(platformsArray[i].x, platformsArray[i].y, platformsArray[i].width, platformsArray[i].height);
         newPlatform.shapeColor = color(255, 255, 0, 0);
-        //newPlatform.shapeColor = color(205, 205, 205);
         newPlatform.debug = true;
         platforms.add(newPlatform);
     }
@@ -156,7 +155,6 @@ function setup() {
     for (var i = 0; i < interactablesArray.length; i++) {
         var newInteractable = createSprite(interactablesArray[i].x, interactablesArray[i].y, interactablesArray[i].width, interactablesArray[i].height);
         newInteractable.shapeColor = color(50, 155, 100);
-        //newInteractable.debug = true;
         newInteractable.setCollider("rectangle", 0, 0, 75, 50);
         interactables.add(newInteractable);
     }
@@ -176,6 +174,8 @@ function draw() {
     background("#2a2e33");
     image(backgroundImg, 0, -220);
     
+    //pointLight(250, 250, 250, 250, 250, 0);
+    
     // Set camera position
     camera.position.x = player.position.x;
     camera.position.y = player.position.y - 75;
@@ -187,12 +187,7 @@ function draw() {
     player.velocity.y += GRAVITY;
 
     // Prevent player from falling while on platform
-    for (var i = 0; i < platforms.length; i++) {
-        player.collide(platforms[i], function () {
-            player.position.y = player.position.y;
-            player.velocity.y = GRAVITY;
-        });
-    }
+    player.collide(platforms, preventFalling);
 
     // Climb when player overlaps climbable area
     player.overlap(climbables, climb);
@@ -218,25 +213,21 @@ function draw() {
         jump();
     }
     
-    //limit the player movements
-    if (player.position.x < 0) player.position.x = 0;
-    if (player.position.y < 0) player.position.y = 0;
+    // Limit player movements
+    if (player.position.x < 0 + player.width / 2) player.position.x = 0 + player.width / 2;
     if (player.position.x > sceneWidth) player.position.x = sceneWidth;
-    if (player.position.y > sceneHeight) player.position.y = sceneHeight;
+    if (player.position.y > sceneHeight - player.width / 2) player.position.y = sceneHeight - player.width / 2;
     
     drawSprites();
 }
 
-function jump() {
-    console.log(player.velocity.y);
-    
-    if (!jumping && player.velocity.y == GRAVITY || player.velocity.y == 0) {
-        jumping = true;
-        player.velocity.y = -10 * 1;
-        player.rotation = 0;
-    }
-    
-    jumping = false;
+function rotatePlayer(player, platform) {
+    player.rotation = platform.collider.rotation * 180 / PI;
+}
+
+function preventFalling(player, platform) {
+    player.position.y = player.position.y;
+    player.velocity.y = GRAVITY;
 }
 
 function climb(player, climbable) {
@@ -266,6 +257,14 @@ function interact(player, interactable) {
     }
 }
 
-function rotatePlayer(player, platform) {
-    player.rotation = platform.collider.rotation * 180 / PI;
+function jump() {
+    console.log(player.velocity.y);
+    
+    if (!jumping && player.velocity.y == GRAVITY || player.velocity.y == 0) {
+        jumping = true;
+        player.velocity.y = -10 * 1;
+        player.rotation = 0;
+    }
+    
+    jumping = false;
 }
