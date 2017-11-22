@@ -132,49 +132,11 @@ function createPInstBinder(pInst) {
 // access without needing to bind them to a p5 instance.
 var abs = p5.prototype.abs;
 var radians = p5.prototype.radians;
+var dist = p5.prototype.dist;
 var degrees = p5.prototype.degrees;
+var pow = p5.prototype.pow;
+var round = p5.prototype.round;
 
-// =============================================================================
-//                         p5 extensions
-// TODO: It'd be nice to get these accepted upstream in p5
-// =============================================================================
-
-/**
- * Projects a vector onto the line parallel to a second vector, giving a third
- * vector which is the orthogonal projection of that vector onto the line.
- * @see https://en.wikipedia.org/wiki/Vector_projection
- * @method project
- * @for p5.Vector
- * @static
- * @param {p5.Vector} a - vector being projected
- * @param {p5.Vector} b - vector defining the projection target line.
- * @return {p5.Vector} projection of a onto the line parallel to b.
- */
-p5.Vector.project = function(a, b) {
-  return p5.Vector.mult(b, p5.Vector.dot(a, b) / p5.Vector.dot(b, b));
-};
-
-/**
- * Ask whether a vector is parallel to this one.
- * @method isParallel
- * @for p5.Vector
- * @param {p5.Vector} v2
- * @param {number} [tolerance] - margin of error for comparisons, comes into
- *        play when comparing rotated vectors.  For example, we want
- *        <1, 0> to be parallel to <0, 1>.rot(Math.PI/2) but float imprecision
- *        can get in the way of that.
- * @return {boolean}
- */
-p5.Vector.prototype.isParallel = function(v2, tolerance) {
-  tolerance = typeof tolerance === 'number' ? tolerance : 1e-14;
-  return (
-      Math.abs(this.x) < tolerance && Math.abs(v2.x) < tolerance
-    ) || (
-      Math.abs(this.y ) < tolerance && Math.abs(v2.y) < tolerance
-    ) || (
-      Math.abs(this.x / v2.x - this.y / v2.y) < tolerance
-    );
-};
 
 // =============================================================================
 //                         p5 additions
@@ -184,7 +146,6 @@ p5.Vector.prototype.isParallel = function(v2, tolerance) {
 * A Group containing all the sprites in the sketch.
 *
 * @property allSprites
-* @for p5.play
 * @type {Group}
 */
 
@@ -891,6 +852,12 @@ function Sprite(pInst, _x, _y, _w, _h) {
   */
   this.collider = undefined;
 
+  //internal use
+  //"default" - no image or custom collider is specified, use the shape width / height
+  //"custom" - specified with setCollider
+  //"image" - no collider is set with setCollider and an image is added
+  this.colliderType = 'none';
+
   /**
   * Object containing information about the most recent collision/overlapping
   * To be typically used in combination with Sprite.overlap or Sprite.collide
@@ -1241,43 +1208,28 @@ function Sprite(pInst, _x, _y, _w, _h) {
   */
   this.animation = undefined;
 
-  /**
-   * Swept collider oriented along the current velocity vector, extending to
-   * cover the old and new positions of the sprite.
-   *
-   * The corners of the swept collider will extend beyond the actual swept
-   * shape, but it should be sufficient for broad-phase detection of collision
-   * candidates.
-   *
-   * Note that this collider will have no dimensions if the source sprite has no
-   * velocity.
-   */
-  this._sweptCollider = undefined;
-
-  /**
-   * If the sprite is moving, use the swept collider. Otherwise use the actual
-   * collider.
-   */
-  this._getBroadPhaseCollider = function() {
-    return (this.velocity.magSq() > 0) ? this._sweptCollider : this.collider;
-  };
-
-  /**
-   * Returns true if the two sprites crossed paths in the current frame,
-   * indicating a possible collision.
-   */
-  this._doSweptCollidersOverlap = function(target) {
-    var displacement = this._getBroadPhaseCollider().collide(target._getBroadPhaseCollider());
-    return displacement.x !== 0 || displacement.y !== 0;
-  };
-
   /*
    * @private
    * Keep animation properties in sync with how the animation changes.
    */
-  this._syncAnimationSizes = function(animations, currentAnimation) {
+  this._syncAnimationSizes = function() {
+    //has an animation but the collider is still default
+    //the animation wasn't loaded. if the animation is not a 1x1 image
+    //it means it just finished loading
+    if(this.colliderType === 'default' &&
+      animations[currentAnimation].getWidth() !== 1 && animations[currentAnimation].getHeight() !== 1)
+    {
+      this.collider = this.getBoundingBox();
+      this.colliderType = 'image';
+      this._internalWidth = animations[currentAnimation].getWidth()*abs(this._getScaleX());
+      this._internalHeight = animations[currentAnimation].getHeight()*abs(this._getScaleY());
+      //quadTree.insert(this);
+    }
+
+    //update size and collider
     if(animations[currentAnimation].frameChanged || this.width === undefined || this.height === undefined)
     {
+      //this.collider = this.getBoundingBox();
       this._internalWidth = animations[currentAnimation].getWidth()*abs(this._getScaleX());
       this._internalHeight = animations[currentAnimation].getHeight()*abs(this._getScaleY());
     }
@@ -1293,10 +1245,6 @@ function Sprite(pInst, _x, _y, _w, _h) {
 
     if(!this.removed)
     {
-      if (this._sweptCollider && this.velocity.magSq() > 0) {
-        this._sweptCollider.updateSweptColliderFromSprite(this);
-      }
-
       //if there has been a change somewhere after the last update
       //the old position is the last position registered in the update
       if(this.newPosition !== this.position)
@@ -1329,14 +1277,55 @@ function Sprite(pInst, _x, _y, _w, _h) {
         //update it
         animations[currentAnimation].update();
 
-        this._syncAnimationSizes(animations, currentAnimation);
+        this._syncAnimationSizes();
       }
 
       //a collider is created either manually with setCollider or
       //when I check this sprite for collisions or overlaps
-      if (this.collider) {
-        this.collider.updateFromSprite(this);
-      }
+      if(this.collider)
+      {
+        if(this.collider instanceof AABB)
+        {
+        //scale / rotate collider
+        var t;
+        if (pInst._angleMode === pInst.RADIANS) {
+          t = radians(this.rotation);
+        } else {
+          t = this.rotation;
+        }
+
+        if(this.colliderType === 'custom')
+          {
+          this.collider.extents.x = this.collider.originalExtents.x * abs(this._getScaleX()) * abs(cos(t)) +
+          this.collider.originalExtents.y * abs(this._getScaleY()) * abs(sin(t));
+
+          this.collider.extents.y = this.collider.originalExtents.x * abs(this._getScaleX()) * abs(sin(t)) +
+          this.collider.originalExtents.y * abs(this._getScaleY()) * abs(cos(t));
+          }
+        else if(this.colliderType === 'default')
+          {
+          this.collider.extents.x = this._internalWidth * abs(this._getScaleX()) * abs(cos(t)) +
+          this._internalHeight * abs(this._getScaleY()) * abs(sin(t));
+          this.collider.extents.y = this._internalWidth * abs(this._getScaleX()) * abs(sin(t)) +
+          this._internalHeight * abs(this._getScaleY()) * abs(cos(t));
+          }
+        else if(this.colliderType === 'image')
+          {
+          this.collider.extents.x = this._internalWidth * abs(cos(t)) +
+          this._internalHeight * abs(sin(t));
+
+          this.collider.extents.y = this._internalWidth * abs(sin(t)) +
+          this._internalHeight * abs(cos(t));
+          }
+        }
+
+        if(this.collider instanceof CircleCollider)
+        {
+        //print(this.scale);
+        this.collider.radius = this.collider.originalRadius * abs(this.scale);
+        }
+
+      }//end collider != null
 
       //mouse actions
       if (this.mouseActive)
@@ -1382,11 +1371,31 @@ function Sprite(pInst, _x, _y, _w, _h) {
    * @method setDefaultCollider
    */
   this.setDefaultCollider = function() {
-    if(animations[currentAnimation] && animations[currentAnimation].getWidth() === 1 && animations[currentAnimation].getHeight() === 1) {
-      //animation is still loading
-      return;
+
+    //if has animation get the animation bounding box
+    //working only for preloaded images
+    if(animations[currentAnimation] && (animations[currentAnimation].getWidth() !== 1 && animations[currentAnimation].getHeight() !== 1))
+    {
+      this.collider = this.getBoundingBox();
+      this._internalWidth = animations[currentAnimation].getWidth()*abs(this._getScaleX());
+      this._internalHeight = animations[currentAnimation].getHeight()*abs(this._getScaleY());
+      //quadTree.insert(this);
+      this.colliderType = 'image';
+      //print("IMAGE COLLIDER ADDED");
     }
-    this.setCollider('rectangle');
+    else if(animations[currentAnimation] && animations[currentAnimation].getWidth() === 1 && animations[currentAnimation].getHeight() === 1)
+    {
+    //animation is still loading
+    //print("wait");
+    }
+    else //get the with and height defined at the creation
+    {
+      this.collider = new AABB(pInst, this.position, createVector(this._internalWidth, this._internalHeight));
+      //quadTree.insert(this);
+      this.colliderType = 'default';
+    }
+
+    pInst.quadTree.insert(this);
   };
 
   /**
@@ -1396,53 +1405,70 @@ function Sprite(pInst, _x, _y, _w, _h) {
    * @method mouseUpdate
    */
   this.mouseUpdate = function() {
+
     var mouseWasOver = this.mouseIsOver;
     var mouseWasPressed = this.mouseIsPressed;
 
     this.mouseIsOver = false;
     this.mouseIsPressed = false;
 
-    //rollover
-    if(this.collider) {
-      var mousePosition;
+    var mousePosition;
 
-      if(camera.active)
-        mousePosition = createVector(camera.mouseX, camera.mouseY);
-      else
-        mousePosition = createVector(pInst.mouseX, pInst.mouseY);
+    if(camera.active)
+      mousePosition = createVector(camera.mouseX, camera.mouseY);
+    else
+      mousePosition = createVector(pInst.mouseX, pInst.mouseY);
 
-      this.mouseIsOver = this.collider.overlap(new p5.PointCollider(mousePosition));
+      //rollover
+      if(this.collider)
+      {
 
-      //global p5 var
-      if(this.mouseIsOver && pInst.mouseIsPressed)
-        this.mouseIsPressed = true;
+        if (this.collider instanceof CircleCollider)
+        {
+          if (dist(mousePosition.x, mousePosition.y, this.collider.center.x, this.collider.center.y) < this.collider.radius)
+            this.mouseIsOver = true;
+        } else if (this.collider instanceof AABB)
+        {
+          if (mousePosition.x > this.collider.left() &&
+              mousePosition.y > this.collider.top() &&
+              mousePosition.x < this.collider.right() &&
+              mousePosition.y < this.collider.bottom())
+          {
+            this.mouseIsOver = true;
+          }
+        }
 
-      //event change - call functions
-      if(!mouseWasOver && this.mouseIsOver && this.onMouseOver !== undefined)
-        if(typeof(this.onMouseOver) === 'function')
-          this.onMouseOver.call(this, this);
-        else
-          print('Warning: onMouseOver should be a function');
+        //global p5 var
+        if(this.mouseIsOver && pInst.mouseIsPressed)
+          this.mouseIsPressed = true;
 
-      if(mouseWasOver && !this.mouseIsOver && this.onMouseOut !== undefined)
-        if(typeof(this.onMouseOut) === 'function')
-          this.onMouseOut.call(this, this);
-        else
-          print('Warning: onMouseOut should be a function');
+        //event change - call functions
+        if(!mouseWasOver && this.mouseIsOver && this.onMouseOver !== undefined)
+          if(typeof(this.onMouseOver) === 'function')
+            this.onMouseOver.call(this, this);
+          else
+            print('Warning: onMouseOver should be a function');
 
-      if(!mouseWasPressed && this.mouseIsPressed && this.onMousePressed !== undefined)
-        if(typeof(this.onMousePressed) === 'function')
-          this.onMousePressed.call(this, this);
-        else
-          print('Warning: onMousePressed should be a function');
+        if(mouseWasOver && !this.mouseIsOver && this.onMouseOut !== undefined)
+          if(typeof(this.onMouseOut) === 'function')
+            this.onMouseOut.call(this, this);
+          else
+            print('Warning: onMouseOut should be a function');
 
-      if(mouseWasPressed && !pInst.mouseIsPressed && !this.mouseIsPressed && this.onMouseReleased !== undefined)
-        if(typeof(this.onMouseReleased) === 'function')
-          this.onMouseReleased.call(this, this);
-        else
-          print('Warning: onMouseReleased should be a function');
+        if(!mouseWasPressed && this.mouseIsPressed && this.onMousePressed !== undefined)
+          if(typeof(this.onMousePressed) === 'function')
+            this.onMousePressed.call(this, this);
+          else
+            print('Warning: onMousePressed should be a function');
 
-    }
+        if(mouseWasPressed && !pInst.mouseIsPressed && !this.mouseIsPressed && this.onMouseReleased !== undefined)
+          if(typeof(this.onMouseReleased) === 'function')
+            this.onMouseReleased.call(this, this);
+          else
+            print('Warning: onMouseReleased should be a function');
+
+      }
+
   };
 
   /**
@@ -1454,83 +1480,72 @@ function Sprite(pInst, _x, _y, _w, _h) {
   * or the mouse cursor.
   *
   * If the sprite is checked for collision, bounce, overlapping or mouse events
-  * a rectangle collider is automatically created from the width and height
-  * parameter passed at the creation of the sprite or the from the image
-  * dimension in case of animated sprites.
+  * a collider is automatically created from the width and height parameter
+  * passed at the creation of the sprite or the from the image dimension in case
+  * of animated sprites.
   *
   * Often the image bounding box is not appropriate as the active area for
   * collision detection so you can set a circular or rectangular sprite with
   * different dimensions and offset from the sprite's center.
   *
-  * There are many ways to call this method.  The first argument determines the
-  * type of collider you are creating, which in turn changes the remaining
-  * arguments.  Valid collider types are:
+  * There are four ways to call this method:
   *
-  * * `point` - A point collider with no dimensions, only a position.
-  *
-  *   `setCollider("point"[, offsetX, offsetY])`
-  *
-  * * `circle` - A circular collider with a set radius.
-  *
-  *   `setCollider("circle"[, offsetX, offsetY[, radius])`
-  *
-  * * `rectangle` - An alias for `aabb`, below.
-  *
-  * * `aabb` - An axis-aligned bounding box - has width and height but no rotation.
-  *
-  *   `setCollider("aabb"[, offsetX, offsetY[, width, height]])`
-  *
-  * * `obb` - An oriented bounding box - has width, height, and rotation.
-  *
-  *   `setCollider("obb"[, offsetX, offsetY[, width, height[, rotation]]])`
-  *
+  * 1. setCollider("rectangle")
+  * 2. setCollider("rectangle", offsetX, offsetY, width, height)
+  * 3. setCollider("circle")
+  * 4. setCollider("circle", offsetX, offsetY, radius)
   *
   * @method setCollider
-  * @param {String} type One of "point", "circle", "rectangle", "aabb" or "obb"
-  * @param {Number} [offsetX] Collider x position from the center of the sprite
-  * @param {Number} [offsetY] Collider y position from the center of the sprite
-  * @param {Number} [width] Collider width or radius
-  * @param {Number} [height] Collider height
-  * @param {Number} [rotation] Collider rotation in degrees
+  * @param {String} type Either "rectangle" or "circle"
+  * @param {Number} offsetX Collider x position from the center of the sprite
+  * @param {Number} offsetY Collider y position from the center of the sprite
+  * @param {Number} width Collider width or radius
+  * @param {Number} height Collider height
   * @throws {TypeError} if given invalid parameters.
   */
-  this.setCollider = function(type, offsetX, offsetY, width, height, rotation) {
-    var _type = type ? type.toLowerCase() : '';
-    if (_type === 'rectangle') {
-      // Map 'rectangle' to AABB.  Change this if you want it to default to OBB.
-      _type = 'obb';
+  this.setCollider = function(type, offsetX, offsetY, width, height) {
+    if (!(type === 'rectangle' || type === 'circle')) {
+      throw new TypeError('setCollider expects the first argument to be either "circle" or "rectangle"');
+    } else if (type === 'circle' && !(arguments.length === 1 || arguments.length === 4)) {
+      throw new TypeError('Usage: setCollider("circle") or setCollider("circle", offsetX, offsetY, radius)');
+    } else if (type === 'rectangle' && !(arguments.length === 1 || arguments.length === 5)) {
+      throw new TypeError('Usage: setCollider("rectangle") or setCollider("rectangle", offsetX, offsetY, width, height)');
     }
 
-    // Check correct arguments, provide context-sensitive usage message if wrong.
-    if (!(_type === 'point' || _type === 'circle' || _type === 'obb' || _type === 'aabb')) {
-      throw new TypeError('setCollider expects the first argument to be one of "point", "circle", "rectangle", "aabb" or "obb"');
-    } else if (_type === 'point' && !(arguments.length === 1 || arguments.length === 3)) {
-      throw new TypeError('Usage: setCollider("' + type + '"[, offsetX, offsetY])');
-    } else if (_type === 'circle' && !(arguments.length === 1 || arguments.length === 3 || arguments.length === 4)) {
-      throw new TypeError('Usage: setCollider("' + type + '"[, offsetX, offsetY[, radius]])');
-    } else if (_type === 'aabb' && !(arguments.length === 1 || arguments.length === 3 || arguments.length === 5)) {
-      throw new TypeError('Usage: setCollider("' + type + '"[, offsetX, offsetY[, width, height]])');
-    } else if (_type === 'obb' && !(arguments.length === 1 || arguments.length === 3 || arguments.length === 5 || arguments.length === 6)) {
-      throw new TypeError('Usage: setCollider("' + type + '"[, offsetX, offsetY[, width, height[, rotation]]])');
+    this.colliderType = 'custom';
+
+    var v = createVector(offsetX, offsetY);
+    if (type === 'rectangle' && arguments.length === 1) {
+      this.collider = new AABB(pInst, this.position, createVector(this.width, this.height));
+    } else if (type === 'rectangle' && arguments.length === 5) {
+      this.collider = new AABB(pInst, this.position, createVector(width, height), v);
+    } else if (type === 'circle' && arguments.length === 1) {
+      this.collider = new CircleCollider(pInst, this.position, Math.floor(Math.max(this.width, this.height) / 2));
+    } else if (type === 'circle' && arguments.length === 4) {
+      this.collider = new CircleCollider(pInst, this.position, width, v);
     }
 
-    //var center = this.position;
-    var offset = createVector(offsetX, offsetY);
+    quadTree.insert(this);
+  };
 
-    if (_type === 'point') {
-      this.collider = p5.PointCollider.createFromSprite(this, offset);
-    } else if (_type === 'circle') {
-      this.collider = p5.CircleCollider.createFromSprite(this, offset, width);
-    } else if (_type === 'aabb') {
-      this.collider = p5.AxisAlignedBoundingBoxCollider.createFromSprite(this, offset, width, height);
-    } else if (_type === 'obb') {
-      this.collider = p5.OrientedBoundingBoxCollider.createFromSprite(this, offset, width, height, radians(rotation));
+  /**
+   * Returns a the bounding box of the current image
+   * @method getBoundingBox
+   */
+  this.getBoundingBox = function() {
+
+    var w = animations[currentAnimation].getWidth()*abs(this._getScaleX());
+    var h = animations[currentAnimation].getHeight()*abs(this._getScaleY());
+
+    //if the bounding box is 1x1 the image is not loaded
+    //potential issue with actual 1x1 images
+    if(w === 1 && h === 1) {
+      //not loaded yet
+      return new AABB(pInst, this.position, createVector(w, h));
     }
-
-    this._sweptCollider = new p5.OrientedBoundingBoxCollider();
-
-    // Disabled for Code.org, since perf seems better without the quadtree:
-    // quadTree.insert(this);
+    else {
+      return new AABB(pInst, this.position, createVector(w, h));
+    }
   };
 
   /**
@@ -1638,9 +1653,10 @@ function Sprite(pInst, _x, _y, _w, _h) {
         noFill();
         stroke(0, 255, 0);
 
-        // Draw collision shape
-        if(this.collider) {
-          this.collider.draw(pInst);
+        //bounding box
+        if(this.collider !== undefined)
+        {
+          this.collider.draw();
         }
         pop();
       }
@@ -2029,14 +2045,27 @@ function Sprite(pInst, _x, _y, _w, _h) {
   * @return {Boolean} result True if inside
   */
   this.overlapPoint = function(pointX, pointY) {
+    var point = createVector(pointX, pointY);
+
     if(!this.collider)
       this.setDefaultCollider();
 
-    if(this.collider) {
-      var point = new p5.PointCollider(new p5.Vector(pointX, pointY));
-      return this.collider.overlap(point);
+    if(this.collider !== undefined)
+    {
+      if(this.collider instanceof AABB)
+        return (point.x > this.collider.left() && point.x < this.collider.right() && point.y > this.collider.top() && point.y < this.collider.bottom());
+      if(this.collider instanceof CircleCollider)
+      {
+        var sqRadius = this.collider.radius * this.collider.radius;
+        var sqDist = pow(this.collider.center.x - point.x, 2) + pow(this.collider.center.y - point.y, 2);
+        return sqDist<sqRadius;
+      }
+      else
+        return false;
     }
-    return false;
+    else
+      return false;
+
   };
 
 
@@ -2065,7 +2094,8 @@ function Sprite(pInst, _x, _y, _w, _h) {
   * @return {Boolean} True if overlapping
   */
   this.overlap = function(target, callback) {
-    return this._collideWith('overlap', target, callback);
+    //if(this.collider instanceof AABB && target.collider instanceof AABB)
+    return this.AABBops('overlap', target, callback);
   };
 
   /**
@@ -2096,7 +2126,8 @@ function Sprite(pInst, _x, _y, _w, _h) {
   * @return {Boolean} True if overlapping
   */
   this.collide = function(target, callback) {
-    return this._collideWith('collide', target, callback);
+    //if(this.collider instanceof AABB && target.collider instanceof AABB)
+    return this.AABBops('collide', target, callback);
   };
 
   /**
@@ -2127,7 +2158,7 @@ function Sprite(pInst, _x, _y, _w, _h) {
   * @return {Boolean} True if overlapping
   */
   this.displace = function(target, callback) {
-    return this._collideWith('displace', target, callback);
+    return this.AABBops('displace', target, callback);
   };
 
   /**
@@ -2158,239 +2189,246 @@ function Sprite(pInst, _x, _y, _w, _h) {
   * @return {Boolean} True if overlapping
   */
   this.bounce = function(target, callback) {
-    return this._collideWith('bounce', target, callback);
+    return this.AABBops('bounce', target, callback);
   };
 
-  /**
-   * Internal collision detection function. Do not use directly.
-   *
-   * Handles collision with individual sprites or with groups, using the
-   * quadtree to optimize the latter.
-   *
-   * @method _collideWith
-   * @private
-   * @param {string} type - 'overlap', 'displace', 'collide' or 'bounce'
-   * @param {Sprite|Group} target
-   * @param {function} callback - if collision occurred
-   * @return {boolean} true if a collision occurred
-   */
-  this._collideWith = function(type, target, callback) {
+  // Internal collision detection function. Do not use directly.
+  this.AABBops = function(type, target, callback) {
+
     this.touching.left = false;
     this.touching.right = false;
     this.touching.top = false;
     this.touching.bottom = false;
 
+    var result = false;
+
+    //if single sprite turn into array anyway
     var others = [];
 
-    if (target instanceof Sprite) {
+    if(target instanceof Sprite)
       others.push(target);
-    } else if (target instanceof Array) {
-      if (pInst.quadTree !== undefined && pInst.quadTree.active) {
-        others = pInst.quadTree.retrieveFromGroup(this, target);
-      }
+    else if(target instanceof Array)
+    {
+      if(quadTree !== undefined && quadTree.active)
+        others = quadTree.retrieveFromGroup( this, target);
 
-      // If the quadtree is disabled -or- no sprites in this group are in the
-      // quadtree yet (because their default colliders haven't been created)
-      // we should just check all of them.
-      if (others.length === 0) {
+      if(others.length === 0)
         others = target;
-      }
-    } else {
+
+    }
+    else
       throw('Error: overlap can only be checked between sprites or groups');
-    }
 
-    var result = false;
-    for(var i = 0; i < others.length; i++) {
-      result = this._collideWithOne(type, others[i], callback) || result;
-    }
-    return result;
-  };
+    for(var i=0; i<others.length; i++)
+      if(this !== others[i] && !this.removed) //you can check collisions within the same group but not on itself
+      {
+        var displacement;
+        var other = others[i];
 
-  /**
-   * Helper collision method for colliding this sprite with one other sprite.
-   *
-   * Has the side effect of setting this.touching properties to TRUE if collisions
-   * occur.
-   *
-   * @method _collideWithOne
-   * @private
-   * @param {string} type - 'overlap', 'displace', 'collide' or 'bounce'
-   * @param {Sprite} other
-   * @param {function} callback - if collision occurred
-   * @return {boolean} true if a collision occurred
-   */
-  this._collideWithOne = function(type, other, callback) {
-    // Never collide with self
-    if (other === this) {
-      return false;
-    }
+        if(this.collider === undefined)
+          this.setDefaultCollider();
 
-    if (this.collider === undefined) {
-      this.setDefaultCollider();
-    }
+        if(other.collider === undefined)
+          other.setDefaultCollider();
 
-    if (other.collider === undefined) {
-      other.setDefaultCollider();
-    }
+        /*
+        if(this.colliderType=="default" && animations[currentAnimation]!=null)
+        {
+          print("busted");
+          return false;
+        }*/
+        if(this.collider !== undefined && other.collider !== undefined)
+        {
+        if(type === 'overlap') {
+            var over;
 
-    if (!this.collider || !other.collider) {
-      // We were unable to create a collider for one of the sprites.
-      // This usually means its animation is not available yet; it will be soon.
-      // Don't collide for now.
-      return false;
-    }
+            //if the other is a circle I calculate the displacement from here
+            if(this.collider instanceof CircleCollider)
+                over = other.collider.overlap(this.collider);
+            else
+                over = this.collider.overlap(other.collider);
 
-    // Actually compute the overlap of the two colliders
-    var displacement = this._findDisplacement(other);
-    if (displacement.x === 0 && displacement.y === 0) {
-      // These sprites are not overlapping.
-      return false;
-    }
+            if(over)
+            {
 
-    if (type === 'collide' || type === 'displace' || type === 'bounce') {
-      if (type === 'displace' && !other.immovable) {
-        other.position.sub(displacement);
-      } else if ((type === 'collide' || type === 'bounce') && !this.immovable) {
-        this.position.add(displacement);
-        this.previousPosition = createVector(this.position.x, this.position.y);
-        this.newPosition = createVector(this.position.x, this.position.y);
-        this.collider.updateFromSprite(this);
-      }
+              result = true;
 
-      if (displacement.x > 0)
-        this.touching.left = true;
-      if (displacement.x < 0)
-        this.touching.right = true;
-      if (displacement.y < 0)
-        this.touching.bottom = true;
-      if (displacement.y > 0)
-        this.touching.top = true;
-
-      // If this is a 'bounce' collision, determine the new velocities for each sprite
-      if (type === 'bounce') {
-        // We are concerned only with velocities parallel to the collision normal,
-        // so project our sprite velocities onto that normal (captured in the
-        // displacement vector) and use these throughout the calculation
-        var thisInitialVelocity = p5.Vector.project(this.velocity, displacement);
-        var otherInitialVelocity = p5.Vector.project(other.velocity, displacement);
-
-        // We only care about relative mass values, so if one of the sprites
-        // is considered 'immovable' treat the _other_ sprite's mass as zero
-        // to get the correct results.
-        var thisMass = this.mass;
-        var otherMass = other.mass;
-        if (this.immovable) {
-          thisMass = 1;
-          otherMass = 0;
-        } else if (other.immovable) {
-          thisMass = 0;
-          otherMass = 1;
-        }
-
-        var combinedMass = thisMass + otherMass;
-        var coefficientOfRestitution = this.restitution * other.restitution;
-        var initialMomentum = p5.Vector.add(
-          p5.Vector.mult(thisInitialVelocity, thisMass),
-          p5.Vector.mult(otherInitialVelocity, otherMass)
-        );
-        var thisFinalVelocity = p5.Vector.sub(otherInitialVelocity, thisInitialVelocity)
-          .mult(otherMass * coefficientOfRestitution)
-          .add(initialMomentum)
-          .div(combinedMass);
-        var otherFinalVelocity = p5.Vector.sub(thisInitialVelocity, otherInitialVelocity)
-          .mult(thisMass * coefficientOfRestitution)
-          .add(initialMomentum)
-          .div(combinedMass);
-        // Remove velocity before and apply velocity after to both members.
-        this.velocity.sub(thisInitialVelocity).add(thisFinalVelocity);
-        other.velocity.sub(otherInitialVelocity).add(otherFinalVelocity);
-      }
-    }
-
-    // Finally, for all collision types call the callback and record
-    // that collision occurred.
-    if (typeof callback === 'function') {
-      callback.call(this, this, other);
-    }
-    return true;
-  };
-
-  this._findDisplacement = function(target) {
-    // Multisample if tunneling occurs:
-    // Do broad-phase detection. Check if the swept colliders overlap.
-    // In that case, test interpolations between their last positions and their
-    // current positions, and check for tunneling that way.
-    // Use multisampling to catch collisions we might otherwise miss.
-    if (this._doSweptCollidersOverlap(target)) {
-      // Figure out how many samples we should take.
-      // We want to limit this so that we don't take an absurd number of samples
-      // when objects end up at very high velocities (as happens sometimes in
-      // game engines).
-      var radiusOnVelocityAxis = Math.max(
-        this.collider._getMinRadius(),
-        target.collider._getMinRadius());
-      var relativeVelocity = p5.Vector.sub(this.velocity, target.velocity).mag();
-      var timestep = Math.max(0.015, radiusOnVelocityAxis / relativeVelocity);
-      // If the objects are small enough to benefit from multisampling at this
-      // relative velocity
-      if (timestep < 1) {
-        // Move sprites back to previous positions
-        // (We jump through some hoops here to avoid creating too many new
-        //  vector objects)
-        var thisOriginalPosition = this.position.copy();
-        var targetOriginalPosition = target.position.copy();
-        this.position.set(this.previousPosition);
-        target.position.set(target.previousPosition);
-
-        // Scale deltas down to timestep-deltas
-        var thisDelta = p5.Vector.sub(thisOriginalPosition, this.previousPosition).mult(timestep);
-        var targetDelta = p5.Vector.sub(targetOriginalPosition, target.previousPosition).mult(timestep);
-
-        // Note: We don't have to check the original position, we can assume it's
-        // non-colliding (or it would have been handled on the last frame).
-        for (var i = timestep; i < 1; i += timestep) {
-          // Move the sprites forward by the sub-frame timestep
-          this.position.add(thisDelta);
-          target.position.add(targetDelta);
-          this.collider.updateFromSprite(this);
-          target.collider.updateFromSprite(target);
-
-          // Check for collision at the new sub-frame position
-          var displacement = this.collider.collide(target.collider);
-          if (displacement.x !== 0 || displacement.y !== 0) {
-            // These sprites are overlapping - we have a displacement, and a
-            // point-in-time for the collision.
-            // If either sprite is immovable, it should move back to its final
-            // position.  Otherwise, leave the sprites at their interpolated
-            // position when the collision occurred.
-            if (this.immovable) {
-              this.position.set(thisOriginalPosition);
+              if(callback !== undefined && typeof callback === 'function')
+                callback.call(this, this, other);
             }
-
-            if (target.immovable) {
-              target.position.set(targetOriginalPosition);
-            }
-
-            return displacement;
           }
-        }
+        else if(type === 'collide' || type === 'displace' || type === 'bounce')
+          {
+            displacement = createVector(0, 0);
 
-        // If we didn't find a displacement partway through,
-        // restore the sprites to their original positions and fall through
-        // to do the collision check at their final position.
-        this.position.set(thisOriginalPosition);
-        target.position.set(targetOriginalPosition);
+            //if the sum of the speed is more than the collider i may
+            //have a tunnelling problem
+            var tunnelX = abs(this.velocity.x-other.velocity.x) >= other.collider.extents.x/2 && round(this.deltaX - this.velocity.x) === 0;
+
+            var tunnelY = abs(this.velocity.y-other.velocity.y) >= other.collider.size().y/2 && round(this.deltaY - this.velocity.y) === 0;
+
+
+            if(tunnelX || tunnelY)
+            {
+              //instead of using the colliders I use the bounding box
+              //around the previous position and current position
+              //this is regardless of the collider type
+
+              //the center is the average of the coll centers
+              var c = createVector(
+                (this.position.x+this.previousPosition.x)/2,
+                (this.position.y+this.previousPosition.y)/2);
+
+              //the extents are the distance between the coll centers
+              //plus the extents of both
+              var e = createVector(
+                abs(this.position.x -this.previousPosition.x) + this.collider.extents.x,
+                abs(this.position.y -this.previousPosition.y) + this.collider.extents.y);
+
+              var bbox = new AABB(pInst, c, e, this.collider.offset);
+
+              //bbox.draw();
+
+              if(bbox.overlap(other.collider))
+              {
+                if(tunnelX) {
+
+                  //entering from the right
+                  if(this.velocity.x < 0)
+                    displacement.x = other.collider.right() - this.collider.left() + 1;
+                  else if(this.velocity.x > 0 )
+                    displacement.x = other.collider.left() - this.collider.right() -1;
+                  }
+
+                if(tunnelY) {
+                  //from top
+                  if(this.velocity.y > 0)
+                    displacement.y = other.collider.top() - this.collider.bottom() - 1;
+                  else if(this.velocity.y < 0 )
+                    displacement.y = other.collider.bottom() - this.collider.top() + 1;
+
+                  }
+
+              }//end overlap
+
+            }
+            else //non tunnel overlap
+            {
+
+              //if the other is a circle I calculate the displacement from here
+              //and reverse it
+              if(this.collider instanceof CircleCollider)
+                {
+                displacement = other.collider.collide(this.collider).mult(-1);
+                }
+              else
+                displacement = this.collider.collide(other.collider);
+
+            }
+
+            if(displacement.x !== 0 || displacement.y !== 0)
+            {
+              var newVelX1, newVelY1, newVelX2, newVelY2;
+
+              if (type === 'displace' && !other.immovable) {
+                other.position.sub(displacement);
+              } else if ((type === 'collide' || type === 'bounce') && !this.immovable) {
+                this.position.add(displacement);
+                this.previousPosition = createVector(this.position.x, this.position.y);
+                this.newPosition = createVector(this.position.x, this.position.y);
+              }
+
+              if(displacement.x > 0)
+                this.touching.left = true;
+              if(displacement.x < 0)
+                this.touching.right = true;
+              if(displacement.y < 0)
+                this.touching.bottom = true;
+              if(displacement.y > 0)
+                this.touching.top = true;
+
+              if(type === 'bounce')
+              {
+                if (this.collider instanceof CircleCollider && other.collider instanceof CircleCollider) {
+                  var dx1 = p5.Vector.sub(this.position, other.position);
+                  var dx2 = p5.Vector.sub(other.position, this.position);
+                  var magnitude = dx1.magSq();
+                  var totalMass = this.mass + other.mass;
+                  var m1 = 0, m2 = 0;
+                  if (this.immovable) {
+                    m2 = 2;
+                  } else if (other.immovable) {
+                    m1 = 2;
+                  } else {
+                    m1 = 2 * other.mass / totalMass;
+                    m2 = 2 * this.mass / totalMass;
+                  }
+                  var newVel1 = dx1.mult(m1 * p5.Vector.sub(this.velocity, other.velocity).dot(dx1) / magnitude);
+                  var newVel2 = dx2.mult(m2 * p5.Vector.sub(other.velocity, this.velocity).dot(dx2) / magnitude);
+
+                  this.velocity.sub(newVel1.mult(this.restitution));
+                  other.velocity.sub(newVel2.mult(other.restitution));
+                }
+                else {
+                if(other.immovable)
+                {
+                  newVelX1 = -this.velocity.x+other.velocity.x;
+                  newVelY1 = -this.velocity.y+other.velocity.y;
+                }
+                else
+                {
+                  newVelX1 = (this.velocity.x * (this.mass - other.mass) + (2 * other.mass * other.velocity.x)) / (this.mass + other.mass);
+                  newVelY1 = (this.velocity.y * (this.mass - other.mass) + (2 * other.mass * other.velocity.y)) / (this.mass + other.mass);
+                  newVelX2 = (other.velocity.x * (other.mass - this.mass) + (2 * this.mass * this.velocity.x)) / (this.mass + other.mass);
+                  newVelY2 = (other.velocity.y * (other.mass - this.mass) + (2 * this.mass * this.velocity.y)) / (this.mass + other.mass);
+                }
+
+                //var bothCircles = (this.collider instanceof CircleCollider &&
+                //                   other.collider  instanceof CircleCollider);
+
+                //if(this.touching.left || this.touching.right || this.collider instanceof CircleCollider)
+
+                //print(displacement);
+
+                if(abs(displacement.x)>abs(displacement.y))
+                {
+
+
+                  if(!this.immovable)
+                  {
+                    this.velocity.x = newVelX1*this.restitution;
+
+                  }
+
+                  if(!other.immovable)
+                    other.velocity.x = newVelX2*other.restitution;
+
+                }
+                //if(this.touching.top || this.touching.bottom || this.collider instanceof CircleCollider)
+                if(abs(displacement.x)<abs(displacement.y))
+                {
+
+                  if(!this.immovable)
+                    this.velocity.y = newVelY1*this.restitution;
+
+                  if(!other.immovable)
+                    other.velocity.y = newVelY2*other.restitution;
+                }
+                }
+              }
+              //else if(type == "collide")
+                //this.velocity = createVector(0,0);
+
+              if(callback !== undefined && typeof callback === 'function')
+                callback.call(this, this, other);
+
+              result = true;
+            }
+          }
+        }//end collider exists
       }
-    }
 
-    // Ensure the colliders are properly updated to match their parent
-    // sprites. Maybe someday we won't have to do this, but for now
-    // sprites aren't guaranteed to be internally consistent we do a
-    // last-minute update to make sure.
-    this.collider.updateFromSprite(this);
-    target.collider.updateFromSprite(target);
-
-    return this.collider.collide(target.collider);
+    return result;
   };
 } //end Sprite class
 
@@ -2761,7 +2799,7 @@ function Group() {
   function _groupCollide(type, target, callback) {
     var didCollide = false;
     for(var i = 0; i<this.size(); i++)
-      didCollide = this.get(i)._collideWith(type, target, callback) || didCollide;
+      didCollide = this.get(i).AABBops(type, target, callback) || didCollide;
     return didCollide;
   }
 
@@ -2884,6 +2922,354 @@ function Group() {
 
 p5.prototype.Group = Group;
 
+//circle collider - used internally
+function CircleCollider(pInst, _center, _radius, _offset) {
+  var pInstBind = createPInstBinder(pInst);
+
+  var createVector = pInstBind('createVector');
+
+  var CENTER = p5.prototype.CENTER;
+
+  this.center = _center;
+  this.radius = _radius;
+  this.originalRadius = _radius;
+
+  if(_offset === undefined)
+    this.offset = createVector(0, 0);
+  else
+    this.offset = _offset;
+  this.extents = createVector(_radius*2, _radius*2);
+
+  this.draw = function()
+  {
+    pInst.noFill();
+    pInst.stroke(0, 255, 0);
+    pInst.rectMode(CENTER);
+    pInst.ellipse(this.center.x+this.offset.x, this.center.y+this.offset.y, this.radius*2, this.radius*2);
+  };
+
+  //should be called only for circle vs circle
+  this.overlap = function(other)
+  {
+    //square dist
+    var r = this.radius + other.radius;
+    r *= r;
+    var thisCenterX = this.center.x + this.offset.x;
+    var thisCenterY = this.center.y + this.offset.y;
+    var otherCenterX = other.center.x + other.offset.x;
+    var otherCenterY = other.center.y + other.offset.y;
+    var sqDist = pow(thisCenterX - otherCenterX, 2) + pow(thisCenterY - otherCenterY, 2);
+    return r > sqDist;
+  };
+
+  //should be called only for circle vs circle
+  this.collide = function(other)
+  {
+    if(this.overlap(other)) {
+      var thisCenterX = this.center.x + this.offset.x;
+      var thisCenterY = this.center.y + this.offset.y;
+      var otherCenterX = other.center.x + other.offset.x;
+      var otherCenterY = other.center.y + other.offset.y;
+      var a = pInst.atan2(thisCenterY-otherCenterY, thisCenterX-otherCenterX);
+      var radii = this.radius+other.radius;
+      var intersection = abs(radii - dist(thisCenterX, thisCenterY, otherCenterX, otherCenterY));
+
+      var displacement = createVector(pInst.cos(a)*intersection, pInst.sin(a)*intersection);
+
+      return displacement;
+    } else {
+      return createVector(0, 0);
+    }
+  };
+
+  this.size = function()
+  {
+    return createVector(this.radius*2, this.radius*2);
+  };
+
+  this.left = function()
+  {
+    return this.center.x+this.offset.x - this.radius;
+  };
+
+  this.right = function()
+  {
+    return this.center.x+this.offset.x + this.radius;
+  };
+
+  this.top = function()
+  {
+    return this.center.y+this.offset.y - this.radius;
+  };
+
+  this.bottom = function()
+  {
+    return this.center.y+this.offset.y + this.radius;
+  };
+
+
+
+}
+defineLazyP5Property('CircleCollider', boundConstructorFactory(CircleCollider));
+
+//axis aligned bounding box - extents are the half sizes - used internally
+function AABB(pInst, _center, _extents, _offset) {
+  var pInstBind = createPInstBinder(pInst);
+
+  var createVector = pInstBind('createVector');
+
+  var CENTER = p5.prototype.CENTER;
+  var PI = p5.prototype.PI;
+
+  this.center = _center;
+  this.extents = _extents;
+  this.originalExtents = _extents.copy();
+
+  if(_offset === undefined)
+    this.offset = createVector(0, 0);
+  else
+    this.offset = _offset;
+
+  this.min = function()
+  {
+    return createVector(this.center.x+this.offset.x - this.extents.x, this.center.y+this.offset.y - this.extents.y);
+  };
+
+  this.max = function()
+  {
+    return createVector(this.center.x+this.offset.x + this.extents.x, this.center.y+this.offset.y + this.extents.y);
+  };
+
+  this.right = function()
+  {
+    return this.center.x+this.offset.x + this.extents.x/2;
+  };
+
+  this.left = function()
+  {
+    return this.center.x+this.offset.x - this.extents.x/2;
+  };
+
+  this.top = function()
+  {
+    return this.center.y+this.offset.y - this.extents.y/2;
+  };
+
+  this.bottom = function()
+  {
+    return this.center.y+this.offset.y + this.extents.y/2;
+  };
+
+  this.size = function()
+  {
+    return createVector(this.extents.x * 2, this.extents.y * 2);
+  };
+
+  this.rotate = function(r)
+  {
+    //rotate the bbox
+    var t;
+    if (pInst._angleMode === pInst.RADIANS) {
+      t = radians(r);
+    } else {
+      t = r;
+    }
+
+    var w2 = this.extents.x * abs(pInst.cos(t)) + this.extents.y * abs(pInst.sin(t));
+    var h2 = this.extents.x * abs(pInst.sin(t)) + this.extents.y * abs(pInst.cos(t));
+
+    this.extents.x = w2;
+    this.extents.y = h2;
+
+  };
+
+  this.draw = function()
+  {
+    //fill(col);
+    pInst.noFill();
+    pInst.stroke(0, 255, 0);
+    pInst.rectMode(CENTER);
+    pInst.rect(this.center.x+this.offset.x, this.center.y+this.offset.y, this.size().x/2, this.size().y/2);
+  };
+
+  this.overlap = function(other)
+  {
+    //box vs box
+    if(other instanceof AABB)
+    {
+      var md = other.minkowskiDifference(this);
+
+      if (md.min().x <= 0 &&
+          md.max().x >= 0 &&
+          md.min().y <= 0 &&
+          md.max().y >= 0)
+      {
+        return true;
+      }
+      else
+        return false;
+    }
+    //box vs circle
+    else if(other instanceof CircleCollider)
+    {
+
+      //find closest point to the circle on the box
+      var pt = createVector(other.center.x, other.center.y);
+
+      //I don't know what's going o try to trace a line from centers to see
+      if( other.center.x < this.left() )
+        pt.x = this.left();
+      else if( other.center.x > this.right())
+        pt.x = this.right();
+
+      if( other.center.y < this.top() )
+        pt.y = this.top();
+      else if( other.center.y > this.bottom())
+        pt.y = this.bottom();
+
+      var distance = pt.dist(other.center);
+
+      return distance<other.radius;
+    }
+  };
+
+  this.collide = function(other)
+  {
+
+    if(other instanceof AABB)
+    {
+      var md = other.minkowskiDifference(this);
+
+      if (md.min().x <= 0 &&
+          md.max().x >= 0 &&
+          md.min().y <= 0 &&
+          md.max().y >= 0)
+      {
+        var boundsPoint = md.closestPointOnBoundsToPoint(createVector(0, 0));
+
+        return boundsPoint;
+      }
+      else
+        return createVector(0, 0);
+    }
+    //box vs circle
+    else if(other instanceof CircleCollider)
+    {
+
+      //find closest point to the circle on the box
+      var pt = createVector(other.center.x, other.center.y);
+
+      //I don't know what's going o try to trace a line from centers to see
+      if( other.center.x < this.left() )
+        pt.x = this.left();
+      else if( other.center.x > this.right())
+        pt.x = this.right();
+
+      if( other.center.y < this.top() )
+        pt.y = this.top();
+      else if( other.center.y > this.bottom())
+        pt.y = this.bottom();
+
+
+      var distance = pt.dist(other.center);
+      var a;
+
+      if(distance<other.radius)
+      {
+        //reclamp point
+        if(pt.x === other.center.x && pt.y === other.center.y)
+        {
+          var xOverlap = pt.x - this.center.x;
+          var yOverlap = pt.y - this.center.y;
+
+
+          if(abs(xOverlap) < abs(yOverlap))
+          {
+            if(xOverlap > 0 )
+              pt.x = this.right();
+            else
+              pt.x = this.left();
+          }
+          else
+          {
+            if(yOverlap < 0 )
+              pt.y = this.top();
+            else
+              pt.y = this.bottom();
+          }
+
+          a = pInst.atan2(other.center.y-pt.y, other.center.x-pt.x);
+
+          //fix exceptions
+          if(a === 0)
+          {
+            if(pt.x === this.right()) a = PI;
+            if(pt.y === this.top()) a = PI/2;
+            if(pt.y === this.bottom()) a = -PI/2;
+          }
+        }
+        else
+        {
+          //angle bw point and center
+          a = pInst.atan2(pt.y-other.center.y, pt.x-other.center.x);
+          //project the normal (line between pt and center) onto the circle
+        }
+
+        var d = createVector(pt.x-other.center.x, pt.y-other.center.y);
+        var displacement = createVector(pInst.cos(a)*other.radius-d.x, pInst.sin(a)*other.radius-d.y);
+
+        //if(pt.x === other.center.x && pt.y === other.center.y)
+        //displacement = displacement.mult(-1);
+
+        return displacement;
+        //return createVector(0,0);
+      }
+      else
+        return createVector(0, 0);
+    }
+  };
+
+  this.minkowskiDifference = function(other)
+  {
+    var topLeft = this.min().sub(other.max());
+    var fullSize = this.size().add(other.size());
+    return new AABB(pInst, topLeft.add(fullSize.div(2)), fullSize.div(2));
+  };
+
+
+  this.closestPointOnBoundsToPoint = function(point)
+  {
+    // test x first
+    var minDist = abs(point.x - this.min().x);
+    var boundsPoint = createVector(this.min().x, point.y);
+
+    if (abs(this.max().x - point.x) < minDist)
+    {
+      minDist = abs(this.max().x - point.x);
+      boundsPoint = createVector(this.max().x, point.y);
+    }
+
+    if (abs(this.max().y - point.y) < minDist)
+    {
+      minDist = abs(this.max().y - point.y);
+      boundsPoint = createVector(point.x, this.max().y);
+    }
+
+    if (abs(this.min().y - point.y) < minDist)
+    {
+      minDist = abs(this.min.y - point.y);
+      boundsPoint = createVector(point.x, this.min().y);
+    }
+
+    return boundsPoint;
+  };
+
+
+}//end AABB
+defineLazyP5Property('AABB', boundConstructorFactory(AABB));
+
+
+
 /**
  * An Animation object contains a series of images (p5.Image) that
  * can be displayed sequentially.
@@ -2951,12 +3337,12 @@ function Animation(pInst) {
 
   /**
   * Delay between frames in number of draw cycles.
-  * If set to 4 the framerate of the anymation would be the
+  * If set to 4 the framerate of the animation would be the
   * sketch framerate divided by 4 (60fps = 15fps)
   *
   * @property frameDelay
   * @type {Number}
-  * @default 2
+  * @default 4
   */
   this.frameDelay = 4;
 
@@ -3102,9 +3488,7 @@ function Animation(pInst) {
   else if (frameArguments.length === 1 && (frameArguments[0] instanceof SpriteSheet))
   {
     this.spriteSheet = frameArguments[0];
-    this.images = this.spriteSheet.frames.map( function(f) {
-      return f.frame;
-    });
+    this.images = this.spriteSheet.frames;
   }
   else if(frameArguments.length !== 0)//arbitrary list of images
   {
@@ -3179,7 +3563,7 @@ function Animation(pInst) {
       if(this.images[frame] !== undefined)
       {
         if (this.spriteSheet) {
-          var frame_info = this.images[frame];
+          var frame_info = this.images[frame].frame;
           pInst.image(this.spriteSheet.image, frame_info.x, frame_info.y, frame_info.width,
             frame_info.height, this.offX, this.offY, frame_info.width, frame_info.height);
         } else {
@@ -3238,8 +3622,6 @@ function Animation(pInst) {
         //if next frame is too high
         if (frame<this.images.length-1)
           frame++;
-        else
-          this.playing = false;
       }
     }
 
@@ -3292,11 +3674,11 @@ function Animation(pInst) {
     //this.playing = false;
   };
 
-  /**
-   * Goes to the next frame and stops.
-   *
-   * @method nextFrame
-   */
+   /**
+  * Goes to the next frame and stops.
+  *
+  * @method nextFrame
+  */
   this.nextFrame = function() {
 
     if (frame<this.images.length-1)
@@ -3308,11 +3690,11 @@ function Animation(pInst) {
     this.playing = false;
   };
 
-  /**
-   * Goes to the previous frame and stops.
-   *
-   * @method previousFrame
-   */
+   /**
+  * Goes to the previous frame and stops.
+  *
+  * @method previousFrame
+  */
   this.previousFrame = function() {
 
     if (frame>0)
@@ -3393,8 +3775,11 @@ function Animation(pInst) {
   * @return {Number} Frame width
   */
   this.getWidth = function() {
-    if (this.images[frame]) {
+    if (this.images[frame] instanceof p5.Image) {
       return this.images[frame].width;
+    } else if (this.images[frame]) {
+      // Special case: Animation-from-spritesheet treats its images array differently.
+      return this.images[frame].frame.width;
     } else {
       return 1;
     }
@@ -3408,8 +3793,11 @@ function Animation(pInst) {
   * @return {Number} Frame height
   */
   this.getHeight = function() {
-    if (this.images[frame]) {
+    if (this.images[frame] instanceof p5.Image) {
       return this.images[frame].height;
+    } else if (this.images[frame]) {
+      // Special case: Animation-from-spritesheet treats its images array differently.
+      return this.images[frame].frame.height;
     } else {
       return 1;
     }
@@ -3690,19 +4078,18 @@ Quadtree.prototype.getIndex = function( pRect ) {
     return -1;
   else
   {
-    var colliderBounds = pRect.collider.getBoundingBox();
     var index 				= -1,
         verticalMidpoint 	= this.bounds.x + (this.bounds.width / 2),
         horizontalMidpoint 	= this.bounds.y + (this.bounds.height / 2),
 
         //pRect can completely fit within the top quadrants
-        topQuadrant = (colliderBounds.top < horizontalMidpoint && colliderBounds.bottom < horizontalMidpoint),
+        topQuadrant = (pRect.collider.top() < horizontalMidpoint && pRect.collider.top() + pRect.collider.size().y < horizontalMidpoint),
 
         //pRect can completely fit within the bottom quadrants
-        bottomQuadrant = (colliderBounds.top > horizontalMidpoint);
+        bottomQuadrant = (pRect.collider.top() > horizontalMidpoint);
 
     //pRect can completely fit within the left quadrants
-    if (colliderBounds.left < verticalMidpoint && colliderBounds.right < verticalMidpoint ) {
+    if( pRect.collider.left() < verticalMidpoint && pRect.collider.left() + pRect.collider.size().x < verticalMidpoint ) {
       if( topQuadrant ) {
         index = 1;
       } else if( bottomQuadrant ) {
@@ -3710,7 +4097,7 @@ Quadtree.prototype.getIndex = function( pRect ) {
       }
 
       //pRect can completely fit within the right quadrants
-    } else if( colliderBounds.left > verticalMidpoint ) {
+    } else if( pRect.collider.left() > verticalMidpoint ) {
       if( topQuadrant ) {
         index = 0;
       } else if( bottomQuadrant ) {
@@ -3954,1468 +4341,5 @@ p5.prototype._warn = function(message) {
     }
   }
 };
-
-  /**
-   * Collision Shape Base Class
-   *
-   * We have a set of collision shapes available that all conform to
-   * a simple interface so that they can be checked against one another
-   * using the Separating Axis Theorem.
-   *
-   * This base class implements all the required methods for a collision
-   * shape and can be used as a collision point with no changes.
-   * Other shapes should inherit from this and override most methods.
-   *
-   * @class p5.CollisionShape
-   * @constructor
-   * @param {p5.Vector} [center] (zero if omitted)
-   * @param {number} [rotation] (zero if omitted)
-   */
-  p5.CollisionShape = function(center, rotation) {
-    /**
-     * Transform of this shape relative to its parent.  If there is no parent,
-     * this is pretty much the world-space transform.
-     * This should stay consistent with _offset, _rotation and _scale properties.
-     * @property _localTransform
-     * @type {p5.Transform2D}
-     * @protected
-     */
-    this._localTransform = new p5.Transform2D();
-    if (rotation) {
-      this._localTransform.rotate(rotation);
-    }
-    if (center) {
-      this._localTransform.translate(center);
-    }
-
-    /**
-     * Transform of whatever parent object (probably a sprite) this shape is
-     * associated with.  If this is a free-floating shape, the parent transform
-     * will remain an identity matrix.
-     * @property _parentTransform
-     * @type {p5.Transform2D}
-     * @protected
-     */
-    this._parentTransform = new p5.Transform2D();
-
-    /**
-     * The center of the collision shape in world-space.
-     * @property _center
-     * @private
-     * @type {p5.Vector}
-     */
-    this._center = new p5.Vector();
-
-    /**
-     * The center of the collision shape in local-space; also, the offset of the
-     * collision shape's center from its parent sprite's center.
-     * @property _offset
-     * @type {p5.Vector}
-     * @private
-     */
-    this._offset = new p5.Vector();
-
-    /**
-     * Rotation in radians in local space (relative to parent).
-     * Note that this will only be meaningful for shapes that can rotate,
-     * i.e. Oriented Bounding Boxes
-     * @property _rotation
-     * @private
-     * @type {number}
-     */
-    this._rotation = 0;
-
-    /**
-     * Scale X and Y in local space.  Note that this will only be meaningful
-     * for shapes that have dimensions (e.g. not for point colliders)
-     * @property _scale
-     * @type {p5.Vector}
-     * @private
-     */
-    this._scale = new p5.Vector(1, 1);
-
-    /**
-     * If true, when calling `updateFromSprite` this collider will adopt the
-     * base dimensions of the sprite in addition to adopting its transform.
-     * If false, only the transform (position/rotation/scale) will be adopted.
-     * @property getsDimensionsFromSprite
-     * @type {boolean}
-     */
-    this.getsDimensionsFromSprite = false;
-
-    // Public getters/setters
-    Object.defineProperties(this, {
-
-      /**
-       * The center of the collision shape in world-space.
-       * Note: You can set this property with a value in world-space, but it will
-       * actually modify the collision shape's local transform.
-       * @property center
-       * @type {p5.Vector}
-       */
-      'center': {
-        enumerable: true,
-        get: function() {
-          return this._center.copy();
-        }.bind(this),
-        set: function(c) {
-          this._localTransform
-            .translate(p5.Vector.mult(this._center, -1))
-            .translate(c);
-          this._onTransformChanged();
-        }.bind(this)
-      },
-
-      /**
-       * The center of the collision shape in local-space - if this collider is
-       * owned by a sprite, the offset of the collider center from the sprite center.
-       * @property offset
-       * @type {p5.Vector}
-       */
-      'offset': {
-        enumerable: true,
-        get: function() {
-          return this._offset.copy();
-        }.bind(this),
-        set: function(o) {
-          this._localTransform
-            .translate(p5.Vector.mult(this._offset, -1))
-            .translate(o);
-          this._onTransformChanged();
-        }.bind(this)
-      },
-
-      /**
-       * The local-space rotation of the collider, in radians.
-       * @property rotation
-       * @type {number}
-       */
-      'rotation': {
-        enumerable: true,
-        get: function() {
-          return this._rotation;
-        }.bind(this),
-        set: function(r) {
-          this._localTransform
-            .clear()
-            .scale(this._scale)
-            .rotate(r)
-            .translate(this._offset);
-          this._onTransformChanged();
-        }.bind(this)
-      },
-
-      /**
-       * The local-space scale of the collider
-       * @property scale
-       * @type {p5.Vector}
-       */
-      'scale': {
-        enumerable: true,
-        get: function() {
-          return this._scale.copy();
-        }.bind(this),
-        set: function(s) {
-          this._localTransform
-            .clear()
-            .scale(s)
-            .rotate(this._rotation)
-            .translate(this._offset);
-          this._onTransformChanged();
-        }.bind(this)
-      }
-    });
-
-    this._onTransformChanged();
-  };
-
-  /**
-   * Update this collider based on the properties of a parent Sprite.
-   * Descendant classes should override this method to adopt the dimensions
-   * of the sprite if `getsDimensionsFromSprite` is true.
-   * @method updateFromSprite
-   * @param {Sprite} sprite
-   * @see p5.CollisionShape.prototype.getsDimensionsFromSprite
-   */
-  p5.CollisionShape.prototype.updateFromSprite = function(sprite) {
-    this.setParentTransform(sprite);
-  };
-
-  /**
-   * Update this collider's parent transform, which will in turn adjust its
-   * position, rotation and scale in world-space and recompute cached values
-   * if necessary.
-   * If a Sprite is passed as the 'parent' then a new transform will be computed
-   * from the sprite's position/rotation/scale and used.
-   * @method setParentTransform
-   * @param {p5.Transform2D|Sprite} parent
-   */
-  p5.CollisionShape.prototype.setParentTransform = function(parent) {
-    if (parent instanceof Sprite) {
-      this._parentTransform
-        .clear()
-        .scale(parent._getScaleX(), parent._getScaleY())
-        .rotate(radians(parent.rotation))
-        .translate(parent.position);
-    } else if (parent instanceof p5.Transform2D) {
-      this._parentTransform = parent.copy();
-    } else {
-      throw new TypeError('Bad argument to setParentTransform: ' + parent);
-    }
-    this._onTransformChanged();
-  };
-
-  /**
-   * Recalculate cached properties, relevant vectors, etc. when at least one
-   * of the shape's transforms changes.  The base CollisionShape (and PointCollider)
-   * only need to recompute the shape's center, but other shapes may need to
-   * override this method and do additional recomputation.
-   * @method _onTransformChanged
-   * @protected
-   */
-  p5.CollisionShape.prototype._onTransformChanged = function() {
-    // Recompute internal properties from transforms
-
-    // Rotation in local space
-    this._rotation = this._localTransform.getRotation();
-
-    // Scale in local space
-    this._scale = this._localTransform.getScale();
-
-    // Offset in local-space
-    this._offset
-      .set(0, 0)
-      .transform(this._localTransform);
-
-    // Center in world-space
-    this._center
-      .set(this._offset.x, this._offset.y)
-      .transform(this._parentTransform);
-  };
-
-  /**
-   * Compute the smallest movement needed to move this collision shape out of
-   * another collision shape.  If the shapes are not overlapping, returns a
-   * zero vector to indicate that no displacement is necessary.
-   * @method collide
-   * @param {p5.CollisionShape} other
-   * @return {p5.Vector}
-   */
-  p5.CollisionShape.prototype.collide = function(other) {
-    var displacee = this, displacer = other;
-
-    // Compute a displacement vector using the Separating Axis Theorem
-    // (Valid only for convex shapes)
-    //
-    // If a line (axis) exists on which the two shapes' orthogonal projections
-    // do not overlap, then the shapes do not overlap.  If the shapes'
-    // projections do overlap on all candidate axes, the axis that had the
-    // smallest overlap gives us the smallest possible displacement.
-    //
-    // @see http://www.dyn4j.org/2010/01/sat/
-    var smallestOverlap = Infinity;
-    var smallestOverlapAxis = null;
-
-    // We speed things up with an additional assumption that all collision
-    // shapes are centrosymmetric: Circles, ellipses, and rectangles
-    // are OK.  This lets us only compare the shapes' radii to the
-    // distance between their centers, even for non-circular shapes.
-    // Other convex shapes, (triangles, pentagons) will require more
-    // complex use of their projections' positions on the axis.
-    var deltaOfCenters = p5.Vector.sub(displacer.center, displacee.center);
-
-    // It turns out we only need to check a few axes, defined by the shapes
-    // being checked.  For a polygon, the normal of each face is a possible
-    // separating axis.
-    var candidateAxes = p5.CollisionShape._getCandidateAxesForShapes(displacee, displacer);
-    var axis, deltaOfCentersOnAxis, distanceOfCentersOnAxis;
-    for (var i = 0; i < candidateAxes.length; i++) {
-      axis = candidateAxes[i];
-
-      // If distance between the shape's centers as projected onto the
-      // separating axis is larger than the combined radii of the shapes
-      // projected onto the axis, the shapes do not overlap on this axis.
-      deltaOfCentersOnAxis = p5.Vector.project(deltaOfCenters, axis);
-      distanceOfCentersOnAxis = deltaOfCentersOnAxis.mag();
-      var r1 = displacee._getRadiusOnAxis(axis);
-      var r2 = displacer._getRadiusOnAxis(axis);
-      var overlap = r1 + r2 - distanceOfCentersOnAxis;
-      if (overlap <= 0) {
-        // These shapes are separated along this axis.
-        // Early-out, returning a zero-vector displacement.
-        return new p5.Vector();
-      } else if (overlap < smallestOverlap) {
-        // This is the smallest overlap we've found so far - store some
-        // information about it, which we can use to give the smallest
-        // displacement when we're done.
-        smallestOverlap = overlap;
-        // Normally use the delta of centers, which gives us direction along
-        // with an axis.  In the rare case that the centers exactly overlap,
-        // just use the original axis
-        if (deltaOfCentersOnAxis.x === 0 && deltaOfCentersOnAxis.y === 0) {
-          smallestOverlapAxis = axis;
-        } else {
-          smallestOverlapAxis = deltaOfCentersOnAxis;
-        }
-      }
-    }
-
-    // If we make it here, we overlap on all possible axes and we
-    // can compute the smallest vector that will displace this out of other.
-    return smallestOverlapAxis.copy().setMag(-smallestOverlap);
-  };
-
-
-  /**
-   * Check whether this shape overlaps another.
-   * @method overlap
-   * @param {p5.CollisionShape} other
-   * @return {boolean}
-   */
-  p5.CollisionShape.prototype.overlap = function(other) {
-    var displacement = this.collide(other);
-    return displacement.x !== 0 || displacement.y !== 0;
-  };
-
-  /**
-   * @method _getCanididateAxesForShapes
-   * @private
-   * @static
-   * @param {p5.CollisionShape} shape1
-   * @param {p5.CollisionShape} shape2
-   * @return {Array.<p5.Vector>}
-   */
-  p5.CollisionShape._getCandidateAxesForShapes = function(shape1, shape2) {
-    var axes = shape1._getCandidateAxes(shape2)
-      .concat(shape2._getCandidateAxes(shape1))
-      .map(function(axis) {
-        if (axis.x === 0 && axis.y === 0) {
-          return p5.CollisionShape.X_AXIS;
-        }
-        return axis;
-      });
-    return deduplicateParallelVectors(axes);
-  };
-
-  /*
-   * Reduce an array of vectors to a set of unique axes (that is, no two vectors
-   * in the array should be parallel).
-   * @param {Array.<p5.Vector>} array
-   * @return {Array}
-   */
-  function deduplicateParallelVectors(array) {
-    return array.filter(function(item, itemPos) {
-      return !array.some(function(other, otherPos) {
-        return itemPos < otherPos && item.isParallel(other);
-      });
-    });
-  }
-
-  /**
-   * Compute candidate separating axes relative to another object.
-   * Override this method in subclasses to implement collision behavior.
-   * @method _getCandidateAxes
-   * @protected
-   * @return {Array.<p5.Vector>}
-   */
-  p5.CollisionShape.prototype._getCandidateAxes = function() {
-    return [];
-  };
-
-  /**
-   * Get this shape's radius (half-width of its projection) along the given axis.
-   * Override this method in subclasses to implement collision behavior.
-   * @method _getRadiusOnAxis
-   * @protected
-   * @param {p5.Vector} axis
-   * @return {number}
-   */
-  p5.CollisionShape.prototype._getRadiusOnAxis = function() {
-    return 0;
-  };
-
-  /**
-   * Get the shape's minimum radius on any axis for tunneling checks.
-   * @method _getMinRadius
-   * @protected
-   * @param {p5.Vector} axis
-   * @return {number}
-   */
-  p5.CollisionShape.prototype._getMinRadius = function() {
-    return 0;
-  };
-
-  /**
-   * @property X_AXIS
-   * @type {p5.Vector}
-   * @static
-   * @final
-   */
-  p5.CollisionShape.X_AXIS = new p5.Vector(1, 0);
-
-  /**
-   * @property Y_AXIS
-   * @type {p5.Vector}
-   * @static
-   * @final
-   */
-  p5.CollisionShape.Y_AXIS = new p5.Vector(0, 1);
-
-  /**
-   * @property WORLD_AXES
-   * @type {Array.<p5.Vector>}
-   * @static
-   * @final
-   */
-  p5.CollisionShape.WORLD_AXES = [
-    p5.CollisionShape.X_AXIS,
-    p5.CollisionShape.Y_AXIS
-  ];
-
-  /**
-   * Get world-space axis-aligned bounds information for this collision shape.
-   * Used primarily for the quadtree.
-   * @method getBoundingBox
-   * @return {{top: number, bottom: number, left: number, right: number, width: number, height: number}}
-   */
-  p5.CollisionShape.prototype.getBoundingBox = function() {
-    var radiusOnX = this._getRadiusOnAxis(p5.CollisionShape.X_AXIS);
-    var radiusOnY = this._getRadiusOnAxis(p5.CollisionShape.Y_AXIS);
-    return {
-      top: this.center.y - radiusOnY,
-      bottom: this.center.y + radiusOnY,
-      left: this.center.x - radiusOnX,
-      right: this.center.x + radiusOnX,
-      width: radiusOnX * 2,
-      height: radiusOnY * 2
-    };
-  };
-
-  /**
-   * A point collision shape, used to detect overlap and displacement vectors
-   * vs other collision shapes.
-   * @class p5.PointCollider
-   * @constructor
-   * @extends p5.CollisionShape
-   * @param {p5.Vector} center
-   */
-  p5.PointCollider = function(center) {
-    p5.CollisionShape.call(this, center);
-  };
-  p5.PointCollider.prototype = Object.create(p5.CollisionShape.prototype);
-
-  /**
-   * Construct a new PointCollider with given offset for the given sprite.
-   * @method createFromSprite
-   * @static
-   * @param {Sprite} sprite
-   * @param {p5.Vector} [offset] from the sprite's center
-   * @return {p5.PointCollider}
-   */
-  p5.PointCollider.createFromSprite = function(sprite, offset) {
-    // Create the collision shape at the transformed offset
-    var shape = new p5.PointCollider(offset);
-    shape.setParentTransform(sprite);
-    return shape;
-  };
-
-  /**
-   * Debug-draw this point collider
-   * @method draw
-   * @param {p5} sketch instance to use for drawing
-   */
-  p5.PointCollider.prototype.draw = function(sketch) {
-    sketch.push();
-    sketch.rectMode(sketch.CENTER);
-    sketch.translate(this.center.x, this.center.y);
-    sketch.noStroke();
-    sketch.fill(0, 255, 0);
-    sketch.ellipse(0, 0, 2, 2);
-    sketch.pop();
-  };
-
-  /**
-   * A Circle collision shape, used to detect overlap and displacement vectors
-   * with other collision shapes.
-   * @class p5.CircleCollider
-   * @constructor
-   * @extends p5.CollisionShape
-   * @param {p5.Vector} center
-   * @param {number} radius
-   */
-  p5.CircleCollider = function(center, radius) {
-    p5.CollisionShape.call(this, center);
-
-    /**
-     * The unscaled radius of the circle collider.
-     * @property radius
-     * @type {number}
-     */
-    this.radius = radius;
-
-    /**
-     * Final radius of this circle after being scaled by parent and local transforms,
-     * cached so we don't recalculate it all the time.
-     * @property _scaledRadius
-     * @type {number}
-     * @private
-     */
-    this._scaledRadius = 0;
-
-    this._computeScaledRadius();
-  };
-  p5.CircleCollider.prototype = Object.create(p5.CollisionShape.prototype);
-
-  /**
-   * Construct a new CircleCollider with given offset for the given sprite.
-   * @method createFromSprite
-   * @static
-   * @param {Sprite} sprite
-   * @param {p5.Vector} [offset] from the sprite's center
-   * @param {number} [radius]
-   * @return {p5.CircleCollider}
-   */
-  p5.CircleCollider.createFromSprite = function(sprite, offset, radius) {
-    var customSize = typeof radius === 'number';
-    var shape = new p5.CircleCollider(
-      offset,
-      customSize ? radius : 1
-    );
-    shape.getsDimensionsFromSprite = !customSize;
-    shape.updateFromSprite(sprite);
-    return shape;
-  };
-
-  /**
-   * Update this collider based on the properties of a parent Sprite.
-   * @method updateFromSprite
-   * @param {Sprite} sprite
-   * @see p5.CollisionShape.prototype.getsDimensionsFromSprite
-   */
-  p5.CircleCollider.prototype.updateFromSprite = function(sprite) {
-    if (this.getsDimensionsFromSprite) {
-      if (sprite.animation) {
-        this.radius = Math.max(sprite.animation.getWidth(), sprite.animation.getHeight())/2;
-      } else {
-        this.radius = Math.max(sprite.width, sprite.height)/2;
-      }
-    }
-    this.setParentTransform(sprite);
-  };
-
-  /**
-   * Recalculate cached properties, relevant vectors, etc. when at least one
-   * of the shape's transforms changes.  The base CollisionShape (and PointCollider)
-   * only need to recompute the shape's center, but other shapes may need to
-   * override this method and do additional recomputation.
-   * @method _onTransformChanged
-   * @protected
-   */
-  p5.CircleCollider.prototype._onTransformChanged = function() {
-    p5.CollisionShape.prototype._onTransformChanged.call(this);
-    this._computeScaledRadius();
-  };
-
-  /**
-   * Call to update the cached scaled radius value.
-   * @method _computeScaledRadius
-   * @private
-   */
-  p5.CircleCollider.prototype._computeScaledRadius = function() {
-    this._scaledRadius = new p5.Vector(this.radius, 0)
-      .transform(this._localTransform)
-      .transform(this._parentTransform)
-      .sub(this.center)
-      .mag();
-  };
-
-  /**
-   * Debug-draw this collision shape.
-   * @method draw
-   * @param {p5} sketch instance to use for drawing
-   */
-  p5.CircleCollider.prototype.draw = function(sketch) {
-    sketch.push();
-    sketch.noFill();
-    sketch.stroke(0, 255, 0);
-    sketch.rectMode(sketch.CENTER);
-    sketch.ellipse(this.center.x, this.center.y, this._scaledRadius*2, this._scaledRadius*2);
-    sketch.pop();
-  };
-
-    /**
-   * Overrides CollisionShape.setParentTransform
-   * Update this collider's parent transform, which will in turn adjust its
-   * position, rotation and scale in world-space and recompute cached values
-   * if necessary.
-   * If a Sprite is passed as the 'parent' then a new transform will be computed
-   * from the sprite's position/rotation/scale and used.
-   * Use the max of the x and y scales values so the circle encompasses the sprite.
-   * @method setParentTransform
-   * @param {p5.Transform2D|Sprite} parent
-   */
-  p5.CircleCollider.prototype.setParentTransform = function(parent) {
-    if (parent instanceof Sprite) {
-      this._parentTransform
-        .clear()
-        .scale(Math.max(parent._getScaleX(), parent._getScaleY()))
-        .rotate(radians(parent.rotation))
-        .translate(parent.position);
-    } else if (parent instanceof p5.Transform2D) {
-      this._parentTransform = parent.copy();
-    } else {
-      throw new TypeError('Bad argument to setParentTransform: ' + parent);
-    }
-    this._onTransformChanged();
-  };
-
-  /**
-   * Compute candidate separating axes relative to another object.
-   * @method _getCandidateAxes
-   * @protected
-   * @param {p5.CollisionShape} other
-   * @return {Array.<p5.Vector>}
-   */
-  p5.CircleCollider.prototype._getCandidateAxes = function(other) {
-    // A circle has infinite potential candidate axes, so the ones we pick
-    // depend on what we're colliding against.
-
-    // TODO: If we can ask the other shape for a list of vertices, then we can
-    //       generalize this algorithm by always using the closest one, and
-    //       remove the special knowledge of OBB and AABB.
-
-    if (other instanceof p5.OrientedBoundingBoxCollider || other instanceof p5.AxisAlignedBoundingBoxCollider) {
-      // There are four possible separating axes with a box - one for each
-      // of its vertices, through the center of the circle.
-      // We need the closest one.
-      var smallestSquareDistance = Infinity;
-      var axisToClosestVertex = null;
-
-      // Generate the set of vertices for the other shape
-      var halfDiagonals = other.halfDiagonals;
-      [
-        p5.Vector.add(other.center, halfDiagonals[0]),
-        p5.Vector.add(other.center, halfDiagonals[1]),
-        p5.Vector.sub(other.center, halfDiagonals[0]),
-        p5.Vector.sub(other.center, halfDiagonals[1])
-      ].map(function(vertex) {
-        // Transform each vertex into a vector from this collider center to
-        // that vertex, which defines an axis we might want to check.
-        return vertex.sub(this.center);
-      }.bind(this)).forEach(function(vector) {
-        // Figure out which vertex is closest and use its axis
-        var squareDistance = vector.magSq();
-        if (squareDistance < smallestSquareDistance) {
-          smallestSquareDistance = squareDistance;
-          axisToClosestVertex = vector;
-        }
-      });
-      return [axisToClosestVertex];
-    }
-
-    // When checking against another circle or a point we only need to check the
-    // axis through both shapes' centers.
-    return [p5.Vector.sub(other.center, this.center)];
-  };
-
-  /**
-   * Get this shape's radius (half-width of its projection) along the given axis.
-   * @method _getRadiusOnAxis
-   * @protected
-   * @return {number}
-   */
-  p5.CircleCollider.prototype._getRadiusOnAxis = function() {
-    return this._scaledRadius;
-  };
-
-  /**
-   * Get the shape's minimum radius on any axis for tunneling checks.
-   * @method _getMinRadius
-   * @protected
-   * @param {p5.Vector} axis
-   * @return {number}
-   */
-  p5.CircleCollider.prototype._getMinRadius = function() {
-    return this._scaledRadius;
-  };
-
-  /**
-   * An Axis-Aligned Bounding Box (AABB) collision shape, used to detect overlap
-   * and compute minimum displacement vectors with other collision shapes.
-   *
-   * Cannot be rotated - hence the name.  You might use this in place of an
-   * OBB because it simplifies some of the math and may improve performance.
-   *
-   * @class p5.AxisAlignedBoundingBoxCollider
-   * @constructor
-   * @extends p5.CollisionShape
-   * @param {p5.Vector} center
-   * @param {number} width
-   * @param {number} height
-   */
-  p5.AxisAlignedBoundingBoxCollider = function(center, width, height) {
-    p5.CollisionShape.call(this, center);
-
-    /**
-     * Unscaled box width.
-     * @property _width
-     * @private
-     * @type {number}
-     */
-    this._width = width;
-
-    /**
-     * Unscaled box height.
-     * @property _width
-     * @private
-     * @type {number}
-     */
-    this._height = height;
-
-    /**
-     * Cached half-diagonals, used for computing a projected radius.
-     * Already transformed into world-space.
-     * @property _halfDiagonals
-     * @private
-     * @type {Array.<p5.Vector>}
-     */
-    this._halfDiagonals = [];
-
-    Object.defineProperties(this, {
-
-      /**
-       * The untransformed width of the box collider.
-       * Recomputes diagonals when set.
-       * @property width
-       * @type {number}
-       */
-      'width': {
-        enumerable: true,
-        get: function() {
-          return this._width;
-        }.bind(this),
-        set: function(w) {
-          this._width = w;
-          this._halfDiagonals = this._computeHalfDiagonals();
-        }.bind(this)
-      },
-
-      /**
-       * The unrotated height of the box collider.
-       * Recomputes diagonals when set.
-       * @property height
-       * @type {number}
-       */
-      'height': {
-        enumerable: true,
-        get: function() {
-          return this._height;
-        }.bind(this),
-        set: function(h) {
-          this._height = h;
-          this._halfDiagonals = this._computeHalfDiagonals();
-        }.bind(this)
-      },
-
-      /**
-       * Two vectors representing adjacent half-diagonals of the box at its
-       * current dimensions and orientation.
-       * @property halfDiagonals
-       * @readOnly
-       * @type {Array.<p5.Vector>}
-       */
-      'halfDiagonals': {
-        enumerable: true,
-        get: function() {
-          return this._halfDiagonals;
-        }.bind(this)
-      }
-    });
-
-    this._computeHalfDiagonals();
-  };
-  p5.AxisAlignedBoundingBoxCollider.prototype = Object.create(p5.CollisionShape.prototype);
-
-  /**
-   * Construct a new AxisAlignedBoundingBoxCollider with given offset for the given sprite.
-   * @method createFromSprite
-   * @static
-   * @param {Sprite} sprite
-   * @param {p5.Vector} [offset] from the sprite's center
-   * @return {p5.CircleCollider}
-   */
-  p5.AxisAlignedBoundingBoxCollider.createFromSprite = function(sprite, offset, width, height) {
-    var customSize = typeof width === 'number' && typeof height === 'number';
-    var box = new p5.AxisAlignedBoundingBoxCollider(
-      offset,
-      customSize ? width : 1,
-      customSize ? height : 1
-    );
-    box.getsDimensionsFromSprite = !customSize;
-    box.updateFromSprite(sprite);
-    return box;
-  };
-
-  /**
-   * Update this collider based on the properties of a parent Sprite.
-   * @method updateFromSprite
-   * @param {Sprite} sprite
-   * @see p5.CollisionShape.prototype.getsDimensionsFromSprite
-   */
-  p5.AxisAlignedBoundingBoxCollider.prototype.updateFromSprite = function(sprite) {
-    if (this.getsDimensionsFromSprite) {
-      if (sprite.animation) {
-        this._width = sprite.animation.getWidth();
-        this._height = sprite.animation.getHeight();
-      } else {
-        this._width = sprite.width;
-        this._height = sprite.height;
-      }
-    }
-    this.setParentTransform(sprite);
-  };
-
-  /**
-   * Recalculate cached properties, relevant vectors, etc. when at least one
-   * of the shape's transforms changes.  The base CollisionShape (and PointCollider)
-   * only need to recompute the shape's center, but other shapes may need to
-   * override this method and do additional recomputation.
-   * @method _onTransformChanged
-   * @protected
-   */
-  p5.AxisAlignedBoundingBoxCollider.prototype._onTransformChanged = function() {
-    p5.CollisionShape.prototype._onTransformChanged.call(this);
-    this._computeHalfDiagonals();
-  };
-
-  /**
-   * Recompute this bounding box's half-diagonal vectors.
-   * @method _computeHalfDiagonals
-   * @private
-   * @return {Array.<p5.Vector>}
-   */
-  p5.AxisAlignedBoundingBoxCollider.prototype._computeHalfDiagonals = function() {
-    // We transform the rectangle (which may scale and rotate it) then compute
-    // an axis-aligned bounding box _around_ it.
-    var composedTransform = p5.Transform2D.mult(this._parentTransform, this._localTransform);
-    var transformedDiagonals = [
-      new p5.Vector(this._width / 2, -this._height / 2),
-      new p5.Vector(this._width / 2, this._height / 2),
-      new p5.Vector(-this._width / 2, this._height / 2)
-    ].map(function(vertex) {
-      return vertex.transform(composedTransform).sub(this.center);
-    }.bind(this));
-
-    var halfWidth = Math.max(
-      Math.abs(transformedDiagonals[0].x),
-      Math.abs(transformedDiagonals[1].x)
-    );
-    var halfHeight = Math.max(
-      Math.abs(transformedDiagonals[1].y),
-      Math.abs(transformedDiagonals[2].y)
-    );
-
-    this._halfDiagonals = [
-      new p5.Vector(halfWidth, -halfHeight),
-      new p5.Vector(halfWidth, halfHeight)
-    ];
-  };
-
-  /**
-   * Debug-draw this collider.
-   * @method draw
-   * @param {p5} sketch - p5 instance to use for drawing
-   */
-  p5.AxisAlignedBoundingBoxCollider.prototype.draw = function(sketch) {
-    sketch.push();
-    sketch.rectMode(sketch.CENTER);
-    sketch.translate(this.center.x, this.center.y);
-    sketch.noFill();
-    sketch.stroke(0, 255, 0);
-    sketch.strokeWeight(1);
-    sketch.rect(0, 0, Math.abs(this._halfDiagonals[0].x) * 2, Math.abs(this._halfDiagonals[0].y) * 2);
-    sketch.pop();
-  };
-
-  /**
-   * Compute candidate separating axes relative to another object.
-   * @method _getCandidateAxes
-   * @protected
-   * @return {Array.<p5.Vector>}
-   */
-  p5.AxisAlignedBoundingBoxCollider.prototype._getCandidateAxes = function() {
-    return p5.CollisionShape.WORLD_AXES;
-  };
-
-  /**
-   * Get this shape's radius (half-width of its projection) along the given axis.
-   * @method _getRadiusOnAxis
-   * @protected
-   * @param {p5.Vector} axis
-   * @return {number}
-   */
-  p5.AxisAlignedBoundingBoxCollider.prototype._getRadiusOnAxis = function(axis) {
-    // How to project a rect onto an axis:
-    // Project the center-corner vectors for two adjacent corners (cached here)
-    // onto the axis.  The larger magnitude of the two is your projection's radius.
-    return Math.max(
-      p5.Vector.project(this._halfDiagonals[0], axis).mag(),
-      p5.Vector.project(this._halfDiagonals[1], axis).mag());
-  };
-
-  /**
-   * Get the shape's minimum radius on any axis for tunneling checks.
-   * @method _getMinRadius
-   * @protected
-   * @param {p5.Vector} axis
-   * @return {number}
-   */
-  p5.AxisAlignedBoundingBoxCollider.prototype._getMinRadius = function() {
-    return Math.min(this._width, this._height);
-  };
-
-  /**
-   * An Oriented Bounding Box (OBB) collision shape, used to detect overlap and
-   * compute minimum displacement vectors with other collision shapes.
-   * @class p5.OrientedBoundingBoxCollider
-   * @constructor
-   * @extends p5.CollisionShape
-   * @param {p5.Vector} center of the rectangle in world-space
-   * @param {number} width of the rectangle (when not rotated)
-   * @param {number} height of the rectangle (when not rotated)
-   * @param {number} rotation about center, in radians
-   */
-  p5.OrientedBoundingBoxCollider = function(center, width, height, rotation) {
-    p5.CollisionShape.call(this, center, rotation);
-
-    /**
-     * Unscaled box width.
-     * @property _width
-     * @private
-     * @type {number}
-     */
-    this._width = width;
-
-    /**
-     * Unscaled box height.
-     * @property _width
-     * @private
-     * @type {number}
-     */
-    this._height = height;
-
-    /**
-     * Cached separating axes this shape contributes to a collision.
-     * @property _potentialAxes
-     * @private
-     * @type {Array.<p5.Vector>}
-     */
-    this._potentialAxes = [];
-
-    /**
-     * Cached half-diagonals, used for computing a projected radius.
-     * Already transformed into world-space.
-     * @property _halfDiagonals
-     * @private
-     * @type {Array.<p5.Vector>}
-     */
-    this._halfDiagonals = [];
-
-    Object.defineProperties(this, {
-
-      /**
-       * The unrotated width of the box collider.
-       * Recomputes diagonals when set.
-       * @property width
-       * @type {number}
-       */
-      'width': {
-        enumerable: true,
-        get: function() {
-          return this._width;
-        }.bind(this),
-        set: function(w) {
-          this._width = w;
-          this._onTransformChanged();
-        }.bind(this)
-      },
-
-      /**
-       * The unrotated height of the box collider.
-       * Recomputes diagonals when set.
-       * @property height
-       * @type {number}
-       */
-      'height': {
-        enumerable: true,
-        get: function() {
-          return this._height;
-        }.bind(this),
-        set: function(h) {
-          this._height = h;
-          this._onTransformChanged();
-        }.bind(this)
-      },
-
-      /**
-       * Two vectors representing adjacent half-diagonals of the box at its
-       * current dimensions and orientation.
-       * @property halfDiagonals
-       * @readOnly
-       * @type {Array.<p5.Vector>}
-       */
-      'halfDiagonals': {
-        enumerable: true,
-        get: function() {
-          return this._halfDiagonals;
-        }.bind(this)
-      }
-    });
-
-    this._onTransformChanged();
-  };
-  p5.OrientedBoundingBoxCollider.prototype = Object.create(p5.CollisionShape.prototype);
-
-  /**
-   * Construct a new AxisAlignedBoundingBoxCollider with given offset for the given sprite.
-   * @method createFromSprite
-   * @static
-   * @param {Sprite} sprite
-   * @param {p5.Vector} [offset] from the sprite's center
-   * @param {number} [width]
-   * @param {number} [height]
-   * @param {number} [rotation] in radians
-   * @return {p5.CircleCollider}
-   */
-  p5.OrientedBoundingBoxCollider.createFromSprite = function(sprite, offset, width, height, rotation) {
-    var customSize = typeof width === 'number' && typeof height === 'number';
-    var box = new p5.OrientedBoundingBoxCollider(
-      offset,
-      customSize ? width : 1,
-      customSize ? height : 1,
-      rotation
-    );
-    box.getsDimensionsFromSprite = !customSize;
-    box.updateFromSprite(sprite);
-    return box;
-  };
-
-  /**
-   * Update this collider based on the properties of a parent Sprite.
-   * @method updateFromSprite
-   * @param {Sprite} sprite
-   * @see p5.CollisionShape.prototype.getsDimensionsFromSprite
-   */
-  p5.OrientedBoundingBoxCollider.prototype.updateFromSprite =
-    p5.AxisAlignedBoundingBoxCollider.prototype.updateFromSprite;
-
-  /**
-   * Assuming this collider is a sprite's swept collider, update it based on
-   * the properties of the parent sprite so that it encloses the sprite's
-   * current position and its projected position.
-   * @method updateSweptColliderFromSprite
-   * @param {Sprite} sprite
-   */
-  p5.OrientedBoundingBoxCollider.prototype.updateSweptColliderFromSprite = function(sprite) {
-    var vMagnitude = sprite.velocity.mag();
-    var vPerpendicular = new p5.Vector(sprite.velocity.y, -sprite.velocity.x);
-    this._width = vMagnitude + 2 * sprite.collider._getRadiusOnAxis(sprite.velocity);
-    this._height = 2 * sprite.collider._getRadiusOnAxis(vPerpendicular);
-    var newRotation = radians(sprite.getDirection());
-    var newCenter = new p5.Vector(
-      sprite.newPosition.x + 0.5 * sprite.velocity.x,
-      sprite.newPosition.y + 0.5 * sprite.velocity.y
-    );
-    // Perform this.rotation = newRotation and this.center = newCenter;
-    this._localTransform
-      .clear()
-      .scale(this._scale)
-      .rotate(newRotation)
-      .translate(this._offset)
-      .translate(p5.Vector.mult(this._center, -1))
-      .translate(newCenter);
-    this._onTransformChanged();
-  };
-
-  /**
-   * Recalculate cached properties, relevant vectors, etc. when at least one
-   * of the shape's transforms changes.  The base CollisionShape (and PointCollider)
-   * only need to recompute the shape's center, but other shapes may need to
-   * override this method and do additional recomputation.
-   * @method _onTransformChanged
-   * @protected
-   */
-  p5.OrientedBoundingBoxCollider.prototype._onTransformChanged = function() {
-    p5.CollisionShape.prototype._onTransformChanged.call(this);
-
-    // Transform each vertex by the local and global matrices
-    // then use their differences to determine width, height, and halfDiagonals
-    var composedTransform = p5.Transform2D.mult(this._parentTransform, this._localTransform);
-    var transformedVertices = [
-      new p5.Vector(this._width / 2, -this._height / 2),
-      new p5.Vector(this._width / 2, this._height / 2),
-      new p5.Vector(-this._width / 2, this._height / 2)
-    ].map(function(vertex) {
-      return vertex.transform(composedTransform);
-    });
-
-    this._halfDiagonals = [
-      p5.Vector.sub(transformedVertices[0], this.center),
-      p5.Vector.sub(transformedVertices[1], this.center)
-    ];
-
-    this._potentialAxes = [
-      p5.Vector.sub(transformedVertices[1], transformedVertices[2]),
-      p5.Vector.sub(transformedVertices[1], transformedVertices[0])
-    ];
-  };
-
-  /**
-   * Debug-draw this collider.
-   * @method draw
-   * @param {p5} sketch - p5 instance to use for drawing
-   */
-  p5.OrientedBoundingBoxCollider.prototype.draw = function(sketch) {
-    var composedTransform = p5.Transform2D.mult(this._localTransform, this._parentTransform);
-    var scale = composedTransform.getScale();
-    var rotation = composedTransform.getRotation();
-    sketch.push();
-    sketch.translate(this.center.x, this.center.y);
-    sketch.scale(scale.x, scale.y);
-    if (sketch._angleMode === sketch.RADIANS) {
-      sketch.rotate(rotation);
-    } else {
-      sketch.rotate(degrees(rotation));
-    }
-
-    sketch.noFill();
-    sketch.stroke(0, 255, 0);
-    sketch.strokeWeight(1);
-    sketch.rectMode(sketch.CENTER);
-    sketch.rect(0, 0, this._width, this._height);
-    sketch.pop();
-  };
-
-  /**
-   * Compute candidate separating axes relative to another object.
-   * @method _getCandidateAxes
-   * @protected
-   * @return {Array.<p5.Vector>}
-   */
-  p5.OrientedBoundingBoxCollider.prototype._getCandidateAxes = function() {
-    // An oriented bounding box always provides two of its face normals,
-    // which we've precomputed.
-    return this._potentialAxes;
-  };
-
-  /**
-   * Get this shape's radius (half-width of its projection) along the given axis.
-   * @method _getRadiusOnAxis
-   * @protected
-   * @param {p5.Vector} axis
-   * @return {number}
-   */
-  p5.OrientedBoundingBoxCollider.prototype._getRadiusOnAxis =
-    p5.AxisAlignedBoundingBoxCollider.prototype._getRadiusOnAxis;
-  // We can reuse the AABB version of this method because both are projecting
-  // cached half-diagonals - the same code works.
-
-  /**
-   * When checking for tunneling through a OrientedBoundingBoxCollider use a
-   * worst-case of zero (e.g. if the other sprite is passing through a corner).
-   * @method _getMinRadius
-   * @protected
-   * @param {p5.Vector} axis
-   * @return {number}
-   */
-  p5.OrientedBoundingBoxCollider.prototype._getMinRadius =
-    p5.AxisAlignedBoundingBoxCollider.prototype._getMinRadius;
-
-  /**
-   * A 2D affine transformation (translation, rotation, scale) stored as a
-   * 3x3 matrix that uses homogeneous coordinates.  Used to quickly transform
-   * points or vectors between reference frames.
-   * @class p5.Transform2D
-   * @constructor
-   * @extends Array
-   * @param {p5.Transform2D|Array.<number>} [source]
-   */
-  p5.Transform2D = function(source) {
-    // We only store the first six values.
-    // the last row in a 2D transform matrix is always "0 0 1" so we can
-    // save space and speed up certain calculations with this assumption.
-    source = source || [1, 0, 0, 0, 1, 0];
-    if (source.length !== 6) {
-      throw new TypeError('Transform2D must have six components');
-    }
-    this.length = 6;
-    this[0] = source[0];
-    this[1] = source[1];
-    this[2] = source[2];
-    this[3] = source[3];
-    this[4] = source[4];
-    this[5] = source[5];
-  };
-  p5.Transform2D.prototype = Object.create(Array.prototype);
-
-  /**
-   * Reset this transform to an identity transform, in-place.
-   * @method clear
-   * @return {p5.Transform2D} this transform
-   */
-  p5.Transform2D.prototype.clear = function() {
-    this[0] = 1;
-    this[1] = 0;
-    this[2] = 0;
-    this[3] = 0;
-    this[4] = 1;
-    this[5] = 0;
-    return this;
-  };
-
-  /**
-   * Make a copy of this transform.
-   * @method copy
-   * @return {p5.Transform2D}
-   */
-  p5.Transform2D.prototype.copy = function() {
-    return new p5.Transform2D(this);
-  };
-
-  /**
-   * Check whether two transforms are the same.
-   * @method equals
-   * @param {p5.Transform2D|Array.<number>} other
-   * @return {boolean}
-   */
-  p5.Transform2D.prototype.equals = function(other) {
-    if (!(other instanceof p5.Transform2D || Array.isArray(other))) {
-      return false; // Never equal to other types.
-    }
-
-    for (var i = 0; i < 6; i++) {
-      if (this[i] !== other[i]) {
-        return false;
-      }
-    }
-    return true;
-  };
-
-  /**
-   * Multiply two transforms together, combining them.
-   * Does not modify original transforms.  Assigns result into dest argument if
-   * provided and returns it.  Otherwise returns a new transform.
-   * @method mult
-   * @static
-   * @param {p5.Transform2D|Array.<number>} t1
-   * @param {p5.Transform2D|Array.<number>} t2
-   * @param {p5.Transform2D} [dest]
-   * @return {p5.Transform2D}
-   */
-  p5.Transform2D.mult = function(t1, t2, dest) {
-    dest = dest || new p5.Transform2D();
-
-    // Capture values of original matrices in local variables, in case one of
-    // them is the one we're mutating.
-    var t1_0, t1_1, t1_2, t1_3, t1_4, t1_5;
-    t1_0 = t1[0];
-    t1_1 = t1[1];
-    t1_2 = t1[2];
-    t1_3 = t1[3];
-    t1_4 = t1[4];
-    t1_5 = t1[5];
-
-    var t2_0, t2_1, t2_2, t2_3, t2_4, t2_5;
-    t2_0 = t2[0];
-    t2_1 = t2[1];
-    t2_2 = t2[2];
-    t2_3 = t2[3];
-    t2_4 = t2[4];
-    t2_5 = t2[5];
-
-    dest[0] = t1_0*t2_0 + t1_1*t2_3;
-    dest[1] = t1_0*t2_1 + t1_1*t2_4;
-    dest[2] = t1_0*t2_2 + t1_1*t2_5 + t1_2;
-
-    dest[3] = t1_3*t2_0 + t1_4*t2_3;
-    dest[4] = t1_3*t2_1 + t1_4*t2_4;
-    dest[5] = t1_3*t2_2 + t1_4*t2_5 + t1_5;
-
-    return dest;
-  };
-
-  /**
-   * Multiply this transform by another, combining them.
-   * Modifies this transform and returns it.
-   * @method mult
-   * @param {p5.Transform2D|Float32Array|Array.<number>} other
-   * @return {p5.Transform2D}
-   */
-  p5.Transform2D.prototype.mult = function(other) {
-    return p5.Transform2D.mult(this, other, this);
-  };
-
-  /**
-   * Modify this transform, translating it by a certain amount.
-   * Returns this transform.
-   * @method translate
-   * @return {p5.Transform2D}
-   * @example
-   *     // Two different ways to call this method.
-   *     var t = new p5.Transform();
-   *     // 1. Two numbers
-   *     t.translate(x, y);
-   *     // 2. One vector
-   *     t.translate(new p5.Vector(x, y));
-   */
-  p5.Transform2D.prototype.translate = function(arg0, arg1) {
-    var x, y;
-    if (arg0 instanceof p5.Vector) {
-      x = arg0.x;
-      y = arg0.y;
-    } else if (typeof arg0 === 'number' && typeof arg1 === 'number') {
-      x = arg0;
-      y = arg1;
-    } else {
-      var args = '';
-      for (var i = 0; i < arguments.length; i++) {
-        args += arguments[i] + ', ';
-      }
-      throw new TypeError('Invalid arguments to Transform2D.translate: ' + args);
-    }
-    return p5.Transform2D.mult([
-      1, 0, x,
-      0, 1, y
-    ], this, this);
-  };
-
-  /**
-   * Retrieve the resolved translation of this transform.
-   * @method getTranslation
-   * @return {p5.Vector}
-   */
-  p5.Transform2D.prototype.getTranslation = function() {
-    return new p5.Vector(this[2], this[5]);
-  };
-
-  /**
-   * Modify this transform, scaling it by a certain amount.
-   * Returns this transform.
-   * @method scale
-   * @return {p5.Transform2D}
-   * @example
-   *     // Three different ways to call this method.
-   *     var t = new p5.Transform();
-   *     // 1. One scalar value
-   *     t.scale(uniformScale);
-   *     // 1. Two scalar values
-   *     t.scale(scaleX, scaleY);
-   *     // 2. One vector
-   *     t.translate(new p5.Vector(scaleX, scaleY));
-   */
-  p5.Transform2D.prototype.scale = function(arg0, arg1) {
-    var sx, sy;
-    if (arg0 instanceof p5.Vector) {
-      sx = arg0.x;
-      sy = arg0.y;
-    } else if (typeof arg0 === 'number' && typeof arg1 === 'number') {
-      sx = arg0;
-      sy = arg1;
-    } else if (typeof arg0 === 'number') {
-      sx = arg0;
-      sy = arg0;
-    } else {
-      throw new TypeError('Invalid arguments to Transform2D.scale: ' + arguments);
-    }
-    return p5.Transform2D.mult([
-      sx, 0, 0,
-      0, sy, 0
-    ], this, this);
-  };
-
-  /**
-   * Retrieve the scale vector of this transform.
-   * @method getScale
-   * @return {p5.Vector}
-   */
-  p5.Transform2D.prototype.getScale = function() {
-    var a = this[0], b = this[1],
-        c = this[3], d = this[4];
-    return new p5.Vector(
-      sign(a) * Math.sqrt(a*a + b*b),
-      sign(d) * Math.sqrt(c*c + d*d)
-    );
-  };
-
-  /*
-   * Return -1, 0, or 1 depending on whether a number is negative, zero, or positive.
-   */
-  function sign(x) {
-    x = +x; // convert to a number
-    if (x === 0 || isNaN(x)) {
-      return Number(x);
-    }
-    return x > 0 ? 1 : -1;
-  }
-
-  /**
-   * Modify this transform, rotating it by a certain amount.
-   * @method rotate
-   * @param {number} radians
-   * @return {p5.Transform2D}
-   */
-  p5.Transform2D.prototype.rotate = function(radians) {
-    // Clockwise!
-    if (typeof radians !== 'number') {
-      throw new TypeError('Invalid arguments to Transform2D.rotate: ' + arguments);
-    }
-    var sinR = Math.sin(radians);
-    var cosR = Math.cos(radians);
-    return p5.Transform2D.mult([
-      cosR, -sinR, 0,
-      sinR, cosR, 0
-    ], this, this);
-  };
-
-  /**
-   * Retrieve the angle of this transform in radians.
-   * @method getRotation
-   * @return {number}
-   */
-  p5.Transform2D.prototype.getRotation = function() {
-    // see http://math.stackexchange.com/a/13165
-    return Math.atan2(-this[1], this[0]);
-  };
-
-  /**
-   * Applies a 2D transformation matrix (using homogeneous coordinates, so 3x3)
-   * to a Vector2 (<x, y, 1>) and returns a new vector2.
-   * @method transform
-   * @for p5.Vector
-   * @static
-   * @param {p5.Vector} v
-   * @param {p5.Transform2D} t
-   * @return {p5.Vector} a new vector
-   */
-  p5.Vector.transform = function(v, t) {
-    return v.copy().transform(t);
-  };
-
-  /**
-   * Transforms this vector by a 2D transformation matrix.
-   * @method transform
-   * @for p5.Vector
-   * @param {p5.Transform2D} transform
-   * @return {p5.Vector} this, after the change
-   */
-  p5.Vector.prototype.transform = function(transform) {
-    // Note: We cheat a whole bunch here since this is just 2D!
-    // Use a different method if looking for true matrix multiplication.
-    var x = this.x;
-    var y = this.y;
-    this.x = transform[0]*x + transform[1]*y + transform[2];
-    this.y = transform[3]*x + transform[4]*y + transform[5];
-    return this;
-  };
 
 }));
