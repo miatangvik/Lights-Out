@@ -1,7 +1,7 @@
 var gameOverlay = document.querySelector('#game-overlay');
-var itemBag = document.querySelector('#item-bag');
+var itemBagButton = document.querySelector('#item-bag');
 
-itemBag.addEventListener('mousedown', function () {
+itemBagButton.addEventListener('mousedown', function () {
     gameOverlay.classList.toggle('active');
 });
 
