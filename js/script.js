@@ -1,11 +1,18 @@
+var startScreen = document.querySelector('#start-screen');
+
 var gameOverlay = document.querySelector('#game-overlay');
 var itemBagButton = document.querySelector('#item-bag');
 
-/*var clues = document.querySelectorAll(".clue");
-var clueContent = document.querySelectorAll(".clue-content");*/
+var clues = document.querySelectorAll(".clue");
+var clueContent = document.querySelectorAll(".clue-content");
 
-var clues = document.getElementsByClassName("clue");
-var clueContent = document.getElementsByClassName("clue-content");
+var lastClue;
+
+document.addEventListener('keydown', function (event) {
+    if (event.which == 13) {
+        startScreen.classList.add('remove');
+    }
+});
 
 itemBagButton.addEventListener('mousedown', function () {
     gameOverlay.classList.toggle('active');
@@ -18,9 +25,16 @@ document.addEventListener('keydown', function (event) {
 });
 
 for (var i = 0; i < clues.length; i++) {
-    clues[i].addEventListener('mousedown', function (i) {
-        console.log("hei");
-        console.log(clueContent.length);
-        clueContent[i].style.background = "black";
-    }, false);
+    clues[i].addEventListener("click", showClue(i));
+}
+
+function showClue(index) {
+    return function () {
+        if (lastClue != undefined) {
+            clueContent[lastClue].style.zIndex = "0";
+        }
+
+        clueContent[index].style.zIndex += "1";
+        lastClue = index;
+    };
 }

@@ -214,11 +214,11 @@ function setup() {
     axe = createSprite(3000, 1035);
     axe.addImage(loadImage("assets/axe_ground.png"));
     interactables.add(axe);
-    
+
     tree = createSprite(3924, -503);
     tree.addImage(loadImage("assets/tree/tree.png"));
     interactables.add(tree);
-    
+
     // Add climbables
     var climbable1 = createSprite(platformWidth * 8 - 75, 400, 210, 1000);
     climbable1.shapeColor = color(82, 38, 0);
@@ -227,10 +227,10 @@ function setup() {
     // Create stone
     stone = createSprite(100, -300, 100, 100);
     stone.addImage(loadImage("assets/rolling-stone.png"));
-    
+
     treeCut = createSprite(3924, -145);
     treeCut.addImage(loadImage("assets/tree/tree_cut.png"));
-    
+
     // Create player
     player = createSprite(50, 0);
 
@@ -260,13 +260,13 @@ function draw() {
     } else {
         camera.position.x = player.position.x;
     }
-    
+
     if (isHoldingAxe) {
         player.changeAnimation("idleAxe");
     } else {
         player.changeAnimation("idle");
     }
-    
+
     if (jumping) {
         if (isHoldingAxe) {
             player.changeImage("jumpAxe");
@@ -284,9 +284,11 @@ function draw() {
     stone.velocity.y += gravity;
 
     // Make player displace stone
-    player.displace(stone/*, function () {
-        stone.rotation += 2;
-    }*/);
+    player.displace(stone
+        /*, function () {
+                stone.rotation += 2;
+            }*/
+    );
 
     // Remove item on overlap
     player.overlap(items, getItem);
@@ -313,16 +315,16 @@ function draw() {
     if (keyIsDown(RIGHT_ARROW)) {
         player.position.x += 20;
         player.mirrorX(1);
-        
+
         if (isHoldingAxe) {
             player.changeAnimation("walkAxe");
-            
+
             if (jumping) {
                 player.changeImage("jumpAxe");
             }
         } else {
             player.changeAnimation("walk");
-            
+
             if (jumping) {
                 player.changeImage("jump");
             }
@@ -335,13 +337,13 @@ function draw() {
 
         if (isHoldingAxe) {
             player.changeAnimation("walkAxe");
-            
+
             if (jumping) {
                 player.changeImage("jumpAxe");
             }
         } else {
             player.changeAnimation("walk");
-            
+
             if (jumping) {
                 player.changeImage("jump");
             }
@@ -404,8 +406,7 @@ function getItem(player, item) {
 function interact(player, interactable) {
     if (keyWentDown(88)) {
         if (interactable == bush) {
-            var platformToRemove = platforms.get(platforms.size() - 1);
-            platformToRemove.remove();
+            platforms.get(26).remove();
         } else if (interactable == axe) {
             interactable.remove();
             isHoldingAxe = true;

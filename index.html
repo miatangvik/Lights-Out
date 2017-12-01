@@ -2,21 +2,29 @@
 <html>
 
 <head>
-    <link rel="stylesheet" href="css/style.css">
     <link rel="stylesheet" href="css/normalize.css">
-    <link href="https://fonts.googleapis.com/css?family=Righteous" rel="stylesheet">
+    <link rel="stylesheet" href="css/style.css">
+    <link href="https://fonts.googleapis.com/css?family=Amatic+SC:400,700|Open+Sans+Condensed:300" rel="stylesheet">
 </head>
 
 <body>
+    <div id="p5_loading" class="loadingclass">WOOOOP WOOOP</div>
+    
     <div id="ui">
-        <p id="score">0</p>
+        <div id="start-screen">
+            <h1>Lights out</h1>
+            <h2>super duper fancy h2.</h2>
+            <p>press <span>enter</span> to start.</p>
+        </div>
+        
+        <p id="score"><span>0</span>/2</p>
 
         <div id="item-bag"></div>
 
         <div id="game-overlay">
             <div class="list-container">
                 <ul id="clue-list">
-                    <li class="clue" id="clue-note">clue-one</li>
+                    <li class="clue">clue-one</li>
                     <li class="clue">clue-two</li>
                     <li class="clue">clue-three</li>
                     <li class="clue">clue-four</li>
@@ -36,8 +44,6 @@
             Arrows to move <span>&vert;</span> Space to jump <span>&vert;</span> X to interact
         </div-->
     </div>
-
-    <div id="p5_loading" class="loadingclass">WOOOOP WOOOP</div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/0.5.16/p5.js"></script>
     <script src="js/p5.play.js"></script>
