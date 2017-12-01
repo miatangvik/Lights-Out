@@ -1,8 +1,8 @@
-*{
+* {
     box-sizing: border-box;
 }
 
-html, body{
+html, body {
     margin: 0px;
     padding: 0px;
 }
@@ -78,7 +78,6 @@ body {
 
 .list-container {
     width: 100%;
-    height: 200px;
 }
 
 #clue-list {
@@ -98,4 +97,17 @@ body {
     display: inline-block;
     list-style-type: none;
     background: white;
+}
+
+#clue-list-content {
+    list-style-type: none;
+    margin: 0;
+    padding: 0;
+}
+
+.clue-content {
+    position: absolute;
+    background: blue;
+    width: 100%;
+    height: 100%;
 }
