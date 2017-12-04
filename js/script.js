@@ -3,8 +3,8 @@ var startScreen = document.querySelector('#start-screen');
 var gameOverlay = document.querySelector('#game-overlay');
 var itemBagButton = document.querySelector('#item-bag');
 
-var clues = document.querySelectorAll(".clue");
-var clueContent = document.querySelectorAll(".clue-content");
+var clues = document.querySelectorAll('.clue');
+var clueContent = document.querySelectorAll('.clue-content');
 
 var lastClue;
 
@@ -14,10 +14,6 @@ document.addEventListener('keydown', function (event) {
     }
 });
 
-itemBagButton.addEventListener('mousedown', function () {
-    gameOverlay.classList.toggle('active');
-});
-
 document.addEventListener('keydown', function (event) {
     if (event.which == 66) {
         gameOverlay.classList.toggle('active');
@@ -25,16 +21,27 @@ document.addEventListener('keydown', function (event) {
 });
 
 for (var i = 0; i < clues.length; i++) {
-    clues[i].addEventListener("click", showClue(i));
+    clues[i].addEventListener('keydown', showClue(i));
 }
 
 function showClue(index) {
     return function () {
         if (lastClue != undefined) {
-            clueContent[lastClue].style.zIndex = "0";
+            clueContent[lastClue].style.zIndex = '0';
+            clues[lastClue].tabIndex = '-1';
         }
-
-        clueContent[index].style.zIndex += "1";
+        
+        if (event.which == 39) {
+            index += 1;
+        } else if (event.which == 37) {
+            index -= 1;
+        }
+                
+        clues[index].focus();
+        clues[index].tabIndex = '0';
+        
+        clueContent[index].style.zIndex += '1';
+        
         lastClue = index;
     };
 }

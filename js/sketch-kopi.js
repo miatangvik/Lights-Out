@@ -7,7 +7,7 @@ var isHoldingAxe = false;
 var platforms, backgrounds, items, interactables, climbables;
 
 // Things
-var stone, axe, tree, treeCut;
+var backpack, item, stone, axe, tree, treeCut;
 
 // Render Scene
 var sceneWidth = 3400;
@@ -26,7 +26,7 @@ var animateIdle, animateWalk, animateClimb, animateIdleAxe, animateWalkAxe;
 
 // Score
 var score = 0;
-var scoreCount = document.querySelector('#score');
+var scoreCount = document.querySelector('#player-score');
 
 function preload() {
     // Preload images
@@ -58,7 +58,8 @@ function preload() {
     platform26Img = loadImage("assets/map/26.png");
     platform27Img = loadImage("assets/map/holefiller.png");
 
-    backgroundImg = loadImage("assets/foreground.png");
+    //backgroundImg = loadImage("assets/foreground.png");
+    backgroundImg = loadImage("assets/background_forest.jpg");
 
     jumpImg = loadImage("assets/Animations/Jump/jump0001.png");
     jumpAxeImg = loadImage("assets/Animations/Jump_axe/jumpaxe0002.png");
@@ -79,13 +80,22 @@ function preload() {
 
 function setup() {
     createCanvas(innerWidth, innerHeight);
-
+    
     // Create groups
     platforms = new Group();
     backgrounds = new Group();
     items = new Group();
     interactables = new Group();
     climbables = new Group();
+    
+    // Add backgrounds
+    var background1 = createSprite(2575, -800);
+    background1.addImage(backgroundImg);
+    backgrounds.add(background1);
+    
+    var backgroundCave = createSprite(2475, 620);
+    backgroundCave.addImage(loadImage("assets/Background_Underground.jpg"));
+    backgrounds.add(backgroundCave);
 
     // Add platforms
     var platform1 = createSprite(1, 0);
@@ -195,16 +205,11 @@ function setup() {
     var platform27 = createSprite(platformWidth * 6 + 200, 84);
     platform27.addImage(platform27Img);
     platforms.add(platform27);
-
-    // Add backgrounds
-    /*var background1 = createSprite(2575, 100);
-    background1.addImage(backgroundImg);
-    backgrounds.add(background1);*/
-
+    
     // Add items
-    /*var item1 = createSprite(120, 650, 10, 10);
-    item1.shapeColor = color(255, 255, 0);
-    items.add(item1);*/
+    var item1 = createSprite(1000, 900, 10, 10);
+    item1.addImage(loadImage("assets/LightemOne.png"));
+    items.add(item1);
 
     // Add interactables
     bush = createSprite(540, -300, 30, 30);
@@ -215,21 +220,21 @@ function setup() {
     axe.addImage(loadImage("assets/axe_ground.png"));
     interactables.add(axe);
 
-    tree = createSprite(3924, -503);
-    tree.addImage(loadImage("assets/tree/tree.png"));
+    tree = createSprite(3924, -450);
+    tree.addImage(loadImage("assets/Trees/tree_black.png"));
     interactables.add(tree);
 
     // Add climbables
     var climbable1 = createSprite(platformWidth * 8 - 75, 400, 210, 1000);
     climbable1.shapeColor = color(82, 38, 0);
     climbables.add(climbable1);
-
+    
     // Create stone
     stone = createSprite(100, -300, 100, 100);
     stone.addImage(loadImage("assets/rolling-stone.png"));
 
-    treeCut = createSprite(3924, -145);
-    treeCut.addImage(loadImage("assets/tree/tree_cut.png"));
+    treeCut = createSprite(3924, -127);
+    treeCut.addImage(loadImage("assets/Trees/tree_black_cut.png"));
 
     // Create player
     player = createSprite(50, 0);
@@ -244,14 +249,18 @@ function setup() {
     player.addAnimation("climb", animateClimb);
     player.addAnimation("idleAxe", animateIdleAxe);
     player.addAnimation("walkAxe", animateWalkAxe);
+    
+    // Add foreground
+    var foreground = createSprite(2435, 545);
+    foreground.addImage(loadImage('assets/foreground.png'));
 }
 
-function draw() {
-    background("#2a2e33");
-
+function draw() {    
+    background("#000000");
+    
     // Set camera position
     camera.position.y = player.position.y - 180;
-    camera.zoom = .8;
+    camera.zoom = .65;
 
     if (player.position.x <= 931) {
         camera.position.x = 931;

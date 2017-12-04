@@ -4,14 +4,7 @@
     padding: 0px;
 }
 
-html, body {
-    margin: 0px;
-    padding: 0px;
-}
-
 body {
-    padding: 0;
-    margin: 0;
     overflow: hidden;
     display: flex;
     justify-content: center;
@@ -88,20 +81,21 @@ p span{
 
 #score {
     position: absolute;
-    margin: 0px;
-    padding: 0px;
     bottom: 80px;
     left: 100px;
     color: white;
-    font-size: 36px;
+    font-size: 62px;
+}
+
+#player-score{
+    font-size: 62px;
+    font-weight: 100;
 }
 
 #keys {
     font-family: 'Helvetica';
     position: absolute;
     bottom: -50px;
-    margin: 0px;
-    padding: 0px;
     left: 0px;
     color: white;
 }
@@ -112,17 +106,13 @@ p span{
 
 #item-bag {
     position: absolute;
-    margin: 0px;
-    padding: 0px;
-    right: 40px;
-    bottom: 30px;
-    width: 50px;
-    height: 50px;
-    background: orange;
+    right: 75px;
+    bottom: 75px;
+    width: 75px;
+    height: 75px;
 }
 
 #game-overlay {
-    margin: 0px;
     padding: 100px;
     visibility: hidden;
     width: 100%;
@@ -141,12 +131,12 @@ h3{
     font-weight: 100;
 }
 
-.list-container {
+/*.list-container {
     overflow-x: scroll;
-}
+}*/
 
 .clues{
-    width: 2000px;
+    width: 1000px;
     display: flex;
     
 }
@@ -156,6 +146,10 @@ h3{
     margin-left: 10px;
     width: 500px;
     background: white;
+}
+
+.clue:active {
+    background: yellow;
 }
 
 .clue.toggled{
