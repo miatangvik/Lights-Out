@@ -407,6 +407,7 @@ function interact(player, interactable) {
     if (keyWentDown(88)) {
         if (interactable == bush) {
             platforms.get(26).remove();
+            interactable.remove();
         } else if (interactable == axe) {
             interactable.remove();
             isHoldingAxe = true;
