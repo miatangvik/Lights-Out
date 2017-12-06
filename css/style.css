@@ -87,6 +87,28 @@ p span{
     font-size: 62px;
 }
 
+#score.complete{
+    animation-name: levelcomplete;
+    animation-delay: 1s; 
+    animation-duration: 2s;
+    animation-fill-mode: forwards;    
+}
+
+@keyframes levelcomplete{
+    25%  {
+        opacity: 0;
+    }
+    50%  {
+        opacity: 1;
+    }
+    75%  {
+        opacity: 0;
+    }
+    100% {
+        opacity: 1;
+    }
+}
+
 #player-score{
     font-size: 62px;
     font-weight: 100;
@@ -163,4 +185,29 @@ h3{
     width: 90%;
     height: 90%;
     display: none;
+}
+
+#end-screen{
+    display: none;
+    position: absolute;
+    z-index: 500;
+    width: 100vw;
+    height: 100vh;
+    background: rgba(0, 0, 0, 0.50);
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+}
+
+#end-screen h1{
+    font-size: 100px;
+    margin: 0px;
+}
+
+#end-screen h2{
+    margin: 0px;
+}
+
+#end-screen.end{
+    display: flex;
 }

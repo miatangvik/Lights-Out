@@ -3,19 +3,19 @@ var gravity = 1;
 var jumping = false;
 var isHoldingAxe = false;
 var pushingStone = false;
+
 var psstSoundPlayed = false;
 
 // Sounds
-var forestSound, ambienceSound;
-var collectSound, removePlatformSound, psstSound;
+var forestSounds, collectSound, removePlatformSound, psstSound, woodChopSound, levelCompleteSound;
 
 // Groups
 var platforms, backgrounds, items, interactables, climbables;
 
 // Things
-var backpack, item, stone, axe, tree, treeCut;
+var backpack, item2, stone, axe, tree, treeCut, note;
 var bush1, bush2, bush3, bush4;
-var tip1, tip2;
+var tip1, tip2, tip3;
 
 // Render Scene
 var sceneWidth = 3400;
@@ -30,28 +30,33 @@ var foregroundFiller;
 var backgroundImg;
 var jumpImg, jumpAxeImg, preClimbImg;
 var bush1Img, bush2Img, bush3Img, bush4Img;
-var tip1Img, tip2Img;
+var tip1Img, tip2Img, tip3Img;
 
 // Animations
 var animateIdle, animateWalk, animatePush, animateClimb, animateIdleAxe, animateWalkAxe;
 
 // Score
 var score = 0;
+var totalScore = document.querySelector('#score');
 var scoreCount = document.querySelector('#player-score');
+
+// End screen
+var endScreen = document.querySelector('#end-screen');
 
 function preload() {
     
     // Preload sounds
     soundFormats('mp3', 'ogg');
-    forestSound = loadSound("assets/audio/forest.mp3");
-    levelSound2 = loadSound("assets/audio/ambience.mp3");
-    
+    forestSounds = loadSound("assets/audio/forest.mp3");    
     collectSound = loadSound("assets/audio/collect_1.mp3");
     removePlatformSound = loadSound("assets/audio/sound_earthquake.mp3");
     psstSound = loadSound("assets/audio/pssst.mp3");
+    woodChopSound = loadSound("assets/audio/treehack.mp3");
+    levelCompleteSound = loadSound("assets/audio/collect_2.ogg");
     
-    forestSound.setVolume(0.03);
-    collectSound.setVolume(0.7);
+    forestSounds.setVolume(0.03); 
+    collectSound.setVolume(0.4);
+    levelCompleteSound.setVolume(0.4);
     psstSound.setVolume(0.5);
     
     // Preload images
@@ -82,8 +87,7 @@ function preload() {
     platform25Img = loadImage("assets/map/25.png");
     platform26Img = loadImage("assets/map/26.png");
     platform27Img = loadImage("assets/map/holefiller.png");
-
-    //backgroundImg = loadImage("assets/foreground.png");
+    
     backgroundImg = loadImage("assets/background_forest.jpg");
 
     jumpImg = loadImage("assets/Animations/Jump/jump0001.png");
@@ -96,8 +100,9 @@ function preload() {
     bush4Img = loadImage("assets/busheskt/Bush_4/Bush_4_0002.png");
     
     // Tips
-    tip1Img = loadImage("assets/tip_1.png");
-    tip2Img = loadImage("assets/tip_2.png");
+    tip1Img = loadImage("assets/controls/tip_1.png");
+    tip2Img = loadImage("assets/controls/tip_2.png");
+    tip3Img = loadImage("assets/controls/tip_3.png");
 
     // Preload animations
     animateIdle = loadAnimation("assets/Animations/Idle/idle0001.png", "assets/Animations/Idle/idle0002.png");
@@ -118,12 +123,8 @@ function setup() {
     createCanvas(innerWidth, innerHeight);
     
     // Background music
-    forestSound.play();
-    forestSound.loop();
-    
-    /*levelSound2.setVolume(1);
-    levelSound2.play();
-    levelSound2.loop();*/
+    forestSounds.play();
+    forestSounds.loop();
     
     // Create groups
     platforms = new Group();
@@ -133,13 +134,13 @@ function setup() {
     climbables = new Group();
     
     // Add backgrounds
-    var background1 = createSprite(2575, -800);
-    background1.addImage(backgroundImg);
-    backgrounds.add(background1);
+    var forestBackground = createSprite(2575, -800);
+    forestBackground.addImage(backgroundImg);
+    backgrounds.add(forestBackground);
     
-    var backgroundCave = createSprite(2475, 620);
-    backgroundCave.addImage(loadImage("assets/Background_Underground.jpg"));
-    backgrounds.add(backgroundCave);
+    var caveBackground = createSprite(2475, 620);
+    caveBackground.addImage(loadImage("assets/Background_Underground.jpg"));
+    backgrounds.add(caveBackground);
     
     // Add platforms
     var platform1 = createSprite(1, 0);
@@ -250,12 +251,8 @@ function setup() {
     platform27.addImage(platform27Img);
     platforms.add(platform27);
     
-    // Add items
-    var item1 = createSprite(1000, 700);
-    item1.addImage(loadImage("assets/LightemOne.png"));
-    items.add(item1);
-    
-    bush1 = createSprite(1550, -210);
+    // Add bushes
+    bush1 = createSprite(1550, -200);
     bush1.addImage(bush1Img);
     
     bush3 = createSprite(2500, -250);
@@ -265,35 +262,33 @@ function setup() {
     bush4 = createSprite(3800, -210);
     bush4.addImage(bush4Img);
     
-    /*bush = createSprite(540, -300, 30, 30);
-    bush.shapeColor = color(0, 144, 67);
-    interactables.add(bush);*/
-    
     // Screen tips
-    /*tip1 = createSprite(900, -250);
+    tip1 = createSprite(700, -250);
     tip1.addImage(tip1Img);
     
-    tip2 = createSprite(2000, -300);
-    tip2.addImage(tip2Img);*/
-
-    tree = createSprite(3924, -450);
-    tree.addImage(loadImage("assets/Trees/tree_black.png"));
-    interactables.add(tree);
-
+    tip2 = createSprite(1250, -240);
+    tip2.addImage(tip2Img);
+    
+    tip3 = createSprite(3000, -250);
+    tip3.addImage(tip3Img);
+    
     var climbable1 = createSprite(platformWidth * 8 - 75, 400, 210, 1000);
     climbable1.addImage(loadImage("assets/ladder.png"));
     climbables.add(climbable1);
     
-    stone = createSprite(500, -300);
+    stone = createSprite(2000, 400);
     stone.addImage(loadImage("assets/item_stone.png"));
+    
+    tree = createSprite(3924, -450);
+    tree.addImage(loadImage("assets/Trees/tree_black.png"));
+    interactables.add(tree);
 
     treeCut = createSprite(3924, -127);
     treeCut.addImage(loadImage("assets/Trees/tree_black_cut.png"));
-    
-    axe = createSprite(3000, 1031);
-    axe.addImage(loadImage("assets/axe_ground.png"));
-    interactables.add(axe);
 
+    sign = createSprite(4900, -170);
+    sign.addImage(loadImage("assets/map_sign.png"));
+    
     // Create player
     player = createSprite(50, 0);
     
@@ -309,6 +304,10 @@ function setup() {
     player.addAnimation("idleAxe", animateIdleAxe);
     player.addAnimation("walkAxe", animateWalkAxe);
     
+    axe = createSprite(3000, 1031);
+    axe.addImage(loadImage("assets/axe_ground.png"));
+    interactables.add(axe);
+    
     // Add foreground
     var foreground = createSprite(2435, 545);
     foreground.addImage(loadImage('assets/foreground.png'));
@@ -318,6 +317,18 @@ function setup() {
     
     bush2 = createSprite(1750, -175);
     bush2.addImage(bush2Img);
+    
+    var item1 = createSprite(1000, 700);
+    item1.addImage(loadImage("assets/LightemOne.png"));
+    items.add(item1);
+    
+    item2 = createSprite(3000, -250);
+    item2.addImage(loadImage("assets/LightemOne.png"));
+    item2.visible = false;
+    
+    note = createSprite(4110, 795);
+    note.addImage(loadImage("assets/item_note.png"));
+    items.add(note);
 }
 
 function draw() {    
@@ -326,13 +337,22 @@ function draw() {
     // Set camera position
     camera.position.y = player.position.y - 180;
     camera.zoom = .65;
-
+    
+    // Limit camera movements
     if (player.position.x <= 931) {
         camera.position.x = 931;
     } else if (player.position.x >= 3950) {
         camera.position.x = 3950;
     } else {
         camera.position.x = player.position.x;
+    }
+    
+    // Limit player movements
+    if (player.position.x < player.width / 2 - 252) player.position.x = player.width / 2 - 252;
+    if (player.position.x >= 5100) player.position.x = 5100;
+    
+    if (player.position.x >= 5000 && score == 2){
+        endScreen.classList.add('end');
     }
 
     if (isHoldingAxe) {
@@ -349,18 +369,47 @@ function draw() {
         }
     }
     
+    // Interact when player overlaps interactable and presses x
+    player.overlap(interactables, interact);
+    
+    // Handle collisions between player, stone and platforms
     player.overlap(platforms, checkOverlap);
     stone.overlap(platforms, checkOverlap);
+    
     stone.overlap(player, checkOverlap);
     
-    /*if (player.overlap(bush3)) {
+    // Make player collide with tree if it's not removed
+    if (!tree.removed) {
+        player.overlap(tree, function () {
+            // Check if player's right side collides with tree
+            if (tree.overlapPixel(player.position.x + (player.width / 2) + 10, player.position.y)) {
+                player.position.x -= 1;
+            }
+
+            while (tree.overlapPixel(player.position.x + (player.width / 2) + 10, player.position.y)) {
+                player.position.x -= 1;
+            }
+
+            // Check if player's left side collides with tree
+            if (tree.overlapPixel(player.position.x - (player.width / 2) - 10, player.position.y)) {
+                player.position.x += 1;
+            }
+
+            while (tree.overlapPixel(player.position.x - (player.width / 2) - 10, player.position.y)) {
+                player.position.x += 1;
+            }
+        });
+    }
+    
+    
+    if (player.overlap(bush3) && !foregroundFiller.removed) {
         if (!psstSoundPlayed) {
             psstSound.play();
             psstSoundPlayed = true;
         }
     } else {
         psstSoundPlayed = false;
-    }*/
+    }
     
     player.velocity.y += gravity;
     stone.velocity.y += gravity;
@@ -373,16 +422,12 @@ function draw() {
 
     // Remove item on overlap
     player.overlap(items, getItem);
-
-    // Interact when player overlaps interactable and presses x
-    player.overlap(interactables, interact);
-
+    
     // Climb up when player overlaps climbable area arrow up is pressed, climb down when arrow down is pressed
     player.overlap(climbables, climb);
-
-    // Limit player movements
-    if (player.position.x < player.width / 2 - 252) player.position.x = player.width / 2 - 252;
-    if (player.position.x >= 5100) player.position.x = 5100;
+    
+    
+    /* CONTROLS */
 
     // Jump
     if (keyWentDown(' ')) {
@@ -438,70 +483,78 @@ function draw() {
     drawSprites();
 }
 
-function checkOverlap(object, platform) {
+function checkOverlap(sprite, platform) {
 
-    // Check if the player is standing on a platform
-    if (platform.overlapPixel(object.position.x, object.position.y + object.height / 2)) {
-        object.velocity.y = 0;
-        object.position.y -= 1;
+    // Check if the sprite is standing on a platform
+    if (platform.overlapPixel(sprite.position.x, sprite.position.y + sprite.height / 2)) {
+        sprite.velocity.y = 0;
+        sprite.position.y -= 1;
         
-        if (object === player) jumping = false;
-        if (object === stone) pushingStone = false;
+        if (sprite === player) jumping = false;
+        if (sprite === stone) pushingStone = false;
 
-        while (platform.overlapPixel(object.position.x, object.position.y + object.height / 2)) {
-            object.position.y -= 1;
+        while (platform.overlapPixel(sprite.position.x, sprite.position.y + sprite.height / 2)) {
+            sprite.position.y -= 1;
         }
     }
 
-    // Check if the player's head is hitting a platform
-    if (platform.overlapPixel(object.position.x, object.position.y - object.height / 2)) {
-        object.velocity.y = 0;
-        object.position.y += 1;
-        //object.position.x = object.position.x;
+    // Check if the top of the sprite is hitting a platform
+    if (platform.overlapPixel(sprite.position.x, sprite.position.y - sprite.height / 2)) {
+        sprite.velocity.y = 0;
+        sprite.position.y += 1;
+        //sprite.position.x = sprite.position.x;
         
-        if (object === stone) pushingStone = false;
+        if (sprite === stone) pushingStone = false;
 
-        while (platform.overlapPixel(object.position.x, object.position.y - object.height / 2)) {
-            object.position.y += 1;
+        while (platform.overlapPixel(sprite.position.x, sprite.position.y - sprite.height / 2)) {
+            sprite.position.y += 1;
         }
     }
 
-    // Check if the player's left side is hitting a platform
-    if (platform.overlapPixel(object.position.x - (object.width / 2) - 20, object.position.y - object.height / 2)) {
-        object.velocity.y = 0;
-        object.position.x += 1;
+    // Check if the sprite's left side is hitting a platform
+    if (platform.overlapPixel(sprite.position.x - (sprite.width / 2) - 20, sprite.position.y - sprite.height / 2)) {
+        sprite.velocity.y = 0;
+        sprite.position.x += 1;
         
-        if (object === stone) pushingStone = true;
+        if (sprite === stone) pushingStone = true;
         
-        while (platform.overlapPixel(object.position.x - (object.width / 2) - 20, object.position.y - object.height / 2)) {
-            object.position.x += 1;
+        while (platform.overlapPixel(sprite.position.x - (sprite.width / 2) - 20, sprite.position.y - sprite.height / 2)) {
+            sprite.position.x += 1;
         }
     }
 
-    // Check if the player's right side is hitting a platform
-    if (platform.overlapPixel(object.position.x + (object.width / 2) + 20, object.position.y - object.height / 2)) {
-        object.velocity.y = 0;
-        object.position.x -= 1;
-        //object.position.y = object.position.y;
+    // Check if the sprite's right side is hitting a platform
+    if (platform.overlapPixel(sprite.position.x + (sprite.width / 2) + 20, sprite.position.y - sprite.height / 2)) {
+        sprite.velocity.y = 0;
+        sprite.position.x -= 1;
+        //sprite.position.y = sprite.position.y;
         
-        if (object === stone) pushingStone = true;
+        if (sprite === stone) pushingStone = true;
 
-        while (platform.overlapPixel(object.position.x + (object.width / 2) + 20, object.position.y - object.height / 2)) {
-            object.position.x -= 1;
+        while (platform.overlapPixel(sprite.position.x + (sprite.width / 2) + 20, sprite.position.y - sprite.height / 2)) {
+            sprite.position.x -= 1;
         }
     }
 }
 
 function getItem(player, item) {
     item.remove();
-    collectSound.play();
-    score += 1;
-    scoreCount.innerHTML = score;
+    
+    if (!(item === note) && score < 2) {
+        collectSound.play();
+        score += 1;
+        scoreCount.innerHTML = score;
+    }
+    
+    if (score == 2){
+        levelCompleteSound.play();
+        totalScore.classList.add('complete');
+    }
 }
 
 function interact(player, interactable) {
     if (keyWentDown(88)) {
-        if (interactable === bush3) {
+        if (interactable === bush3 && !foregroundFiller.removed) {
             removePlatformSound.play();
             platforms.get(26).remove();
             foregroundFiller.remove();
@@ -509,8 +562,15 @@ function interact(player, interactable) {
             interactable.remove();
             isHoldingAxe = true;
         } else if (interactable === tree && isHoldingAxe) {
-            interactable.remove();
-            isHoldingAxe = false;
+            woodChopSound.play();
+            
+            setTimeout(function () {
+                interactable.remove();
+                isHoldingAxe = false;
+                
+                item2.visible = true;
+                items.add(item2);
+            }, 2000);
         }
     }
 }
