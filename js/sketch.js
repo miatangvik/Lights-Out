@@ -24,10 +24,10 @@ var tip1, tip2, tip3;
 // Images
 var platform1Img, platform2Img, platform3Img, platform4Img, platform5Img, platform6Img, platform7Img, platform8Img, platform9Img, platform10Img, platform11Img, platform12Img, platform13Img, platform14Img, platform15Img, platform16Img, platform17Img, platform18Img, platform19Img, platform20Img, platform21Img, platform22Img, platform23Img, platform24Img, platform25Img, platform26Img, platform27Img, platform28Img, platform29Img, platform30Img, platform31Img;
 
-var forestBackgroundImg, caveBackgroundImg, foregroundFillerImg;
+var forestBackgroundImg, caveBackgroundImg, foregroundImg, foregroundFillerImg;
 var jumpImg, jumpAxeImg, preClimbImg;
-var lightImg, noteImg;
-var bush1Img, bush2Img, bush3Img, bush4Img;
+var lightImg, stoneImg, axeImg, ladderImg, treeImg, treeCutImg, noteImg;
+var signImg, bush1Img, bush2Img, bush3Img, bush4Img;
 var tip1Img, tip2Img, tip3Img;
 
 // Animations
@@ -88,6 +88,7 @@ function preload() {
 
 	forestBackgroundImg = loadImage("assets/background_forest.jpg");
 	caveBackgroundImg = loadImage("assets/Background_Underground.jpg");
+	foregroundImg = loadImage("assets/foreground.png");
 	foregroundFillerImg = loadImage("assets/holefiller_overlays.png");
 
 	jumpImg = loadImage("assets/Animations/Jump/jump0001.png");
@@ -95,8 +96,14 @@ function preload() {
 	preClimbImg = loadImage("assets/Animations/Pre-climb/preclimb0001.png");
 
 	lightImg = loadImage("assets/LightemOne.png");
+	stoneImg = loadImage("assets/item_stone.png");
+	axeImg = loadImage("assets/axe_ground.png");
+	ladderImg = loadImage("assets/ladder.png");
+	treeImg = loadImage("assets/Trees/tree_black.png")
+	treeCutImg = loadImage("assets/Trees/tree_black.png");
 	noteImg = loadImage("assets/item_note.png");
 
+	signImg = loadImage("assets/map_sign.png");
 	bush1Img = loadImage("assets/busheskt/Bush_1/Bush_1_0001.png");
 	bush2Img = loadImage("assets/busheskt/Bush_2/Bush_2_0001.png");
 	bush3Img = loadImage("assets/busheskt/Bush_3.png");
@@ -272,20 +279,20 @@ function setup() {
 	tip3.addImage(tip3Img);
 
 	ladder = createSprite(platformWidth * 8 - 75, 400);
-	ladder.addImage(loadImage("assets/ladder.png"));
-	
+	ladder.addImage(ladderImg);
+
 	stone = createSprite(2000, 400);
-	stone.addImage(loadImage("assets/item_stone.png"));
+	stone.addImage(stoneImg);
 
 	tree = createSprite(3924, -450);
-	tree.addImage(loadImage("assets/Trees/tree_black.png"));
+	tree.addImage(treeImg);
 	interactables.add(tree);
 
 	treeCut = createSprite(3924, -127);
-	treeCut.addImage(loadImage("assets/Trees/tree_black_cut.png"));
+	treeCut.addImage(treeCutImg);
 
-	sign = createSprite(4900, -170);
-	sign.addImage(loadImage("assets/map_sign.png"));
+	var sign = createSprite(4900, -170);
+	sign.addImage(signImg);
 
 	// Create player
 	player = createSprite(50, 0);
@@ -303,12 +310,12 @@ function setup() {
 	player.addAnimation("walkAxe", animateWalkAxe);
 
 	axe = createSprite(3000, 1031);
-	axe.addImage(loadImage("assets/axe_ground.png"));
+	axe.addImage(axeImg);
 	interactables.add(axe);
 
 	// Add foreground
 	var foreground = createSprite(2435, 545);
-	foreground.addImage(loadImage('assets/foreground.png'));
+	foreground.addImage(foregroundImg);
 
 	foregroundFiller = createSprite(platformWidth * 6 + 247, 100);
 	foregroundFiller.addImage(foregroundFillerImg);
@@ -331,12 +338,12 @@ function setup() {
 
 function draw() {
 	background("#000000");
-	
+
 	// Set camera position
 	camera.position.y = player.position.y - 180;
 	camera.zoom = .65;
 
-	// Limit camera movement
+	// Limit camera movements
 	if (player.position.x <= 931) {
 		camera.position.x = 931;
 	} else if (player.position.x >= 3950) {
@@ -344,7 +351,7 @@ function draw() {
 	} else {
 		camera.position.x = player.position.x;
 	}
-	
+
 	if (player.position.x >= 3075 && player.position.x <= 4000 && player.position.y <= 150 && !foregroundFiller.removed) {
 		camera.position.x = 3075;
 	}
@@ -357,7 +364,7 @@ function draw() {
 		tip1.remove();
 		tip2.remove();
 	}
-	
+
 	// Show end screen if level is complete and player is at the end of the level
 	if (player.position.x >= 5000 && score == 2) {
 		endScreen.classList.add('end');
@@ -384,7 +391,11 @@ function draw() {
 	player.overlap(platforms, checkOverlap);
 	stone.overlap(platforms, checkOverlap);
 
-	stone.overlap(player, checkOverlap);
+	if (player.displace(stone)) {
+		pushingStone = true;
+	} else {
+		pushingStone = false;
+	}
 
 	// Make player collide with tree if it's not removed
 	if (!tree.removed) {
@@ -424,6 +435,7 @@ function draw() {
 
 	// Enable jumping on stone
 	if (stone.overlapPixel(player.position.x, player.position.y + player.height / 2 + 3)) {
+		pushingStone = false;
 		jumping = false;
 		player.velocity.y = 0;
 	}
@@ -431,12 +443,12 @@ function draw() {
 	// Remove item on overlap
 	player.overlap(items, getItem);
 
-	// When player overlaps ladder, climb up when arrow up is pressed and down when arrown down is pressed
+	// When player overlaps ladder, climb up with arrow up and down with arrow down
 	player.overlap(ladder, climb);
 
 
 	/* CONTROLS */
-	
+
 	// Move player with arrow keys
 	if (keyIsDown(RIGHT_ARROW)) {
 		player.position.x += 8;
@@ -479,7 +491,7 @@ function draw() {
 			}
 		}
 	}
-	
+
 	// Jump
 	if (keyWentDown(' ')) {
 		if (!jumping) {
@@ -495,11 +507,10 @@ function checkOverlap(sprite, platform) {
 
 	// Check if the sprite is standing on a platform
 	if (platform.overlapPixel(sprite.position.x, sprite.position.y + sprite.height / 2)) {
+		if (sprite === player) jumping = false;
+		
 		sprite.velocity.y = 0;
 		sprite.position.y -= 1;
-
-		if (sprite === player) jumping = false;
-		if (sprite === stone) pushingStone = false;
 
 		while (platform.overlapPixel(sprite.position.x, sprite.position.y + sprite.height / 2)) {
 			sprite.position.y -= 1;
@@ -511,9 +522,7 @@ function checkOverlap(sprite, platform) {
 		sprite.velocity.y = 0;
 		sprite.position.y += 1;
 		//sprite.position.x = sprite.position.x;
-
-		if (sprite === stone) pushingStone = false;
-
+		
 		while (platform.overlapPixel(sprite.position.x, sprite.position.y - sprite.height / 2)) {
 			sprite.position.y += 1;
 		}
@@ -521,11 +530,11 @@ function checkOverlap(sprite, platform) {
 
 	// Check if the sprite's left side is hitting a platform
 	if (platform.overlapPixel(sprite.position.x - (sprite.width / 2) - 20, sprite.position.y - sprite.height / 2)) {
+		if (sprite === stone) stone.displace(player);
+		
 		sprite.velocity.y = 0;
 		sprite.position.x += 1;
-
-		if (sprite === stone) pushingStone = true;
-
+		
 		while (platform.overlapPixel(sprite.position.x - (sprite.width / 2) - 20, sprite.position.y - sprite.height / 2)) {
 			sprite.position.x += 1;
 		}
@@ -533,12 +542,12 @@ function checkOverlap(sprite, platform) {
 
 	// Check if the sprite's right side is hitting a platform
 	if (platform.overlapPixel(sprite.position.x + (sprite.width / 2) + 20, sprite.position.y - sprite.height / 2)) {
+		if (sprite === stone) stone.displace(player);
+		
 		sprite.velocity.y = 0;
 		sprite.position.x -= 1;
 		//sprite.position.y = sprite.position.y;
-
-		if (sprite === stone) pushingStone = true;
-
+		
 		while (platform.overlapPixel(sprite.position.x + (sprite.width / 2) + 20, sprite.position.y - sprite.height / 2)) {
 			sprite.position.x -= 1;
 		}
@@ -572,7 +581,7 @@ function interact(player, interactable) {
 			holdingAxe = true;
 		} else if (interactable === tree && holdingAxe) {
 			woodChopSound.play();
-			
+
 			setTimeout(function () {
 				interactable.remove();
 				holdingAxe = false;
