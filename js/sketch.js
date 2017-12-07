@@ -387,6 +387,7 @@ function draw() {
 	// Interact when player overlaps interactable and presses x
 	player.overlap(interactables, interact);
 
+
 	// Handle collisions between player, stone and platforms
 	player.overlap(platforms, checkOverlap);
 	stone.overlap(platforms, checkOverlap);
@@ -508,7 +509,7 @@ function checkOverlap(sprite, platform) {
 	// Check if the sprite is standing on a platform
 	if (platform.overlapPixel(sprite.position.x, sprite.position.y + sprite.height / 2)) {
 		if (sprite === player) jumping = false;
-		
+
 		sprite.velocity.y = 0;
 		sprite.position.y -= 1;
 
@@ -522,7 +523,7 @@ function checkOverlap(sprite, platform) {
 		sprite.velocity.y = 0;
 		sprite.position.y += 1;
 		//sprite.position.x = sprite.position.x;
-		
+
 		while (platform.overlapPixel(sprite.position.x, sprite.position.y - sprite.height / 2)) {
 			sprite.position.y += 1;
 		}
@@ -530,11 +531,11 @@ function checkOverlap(sprite, platform) {
 
 	// Check if the sprite's left side is hitting a platform
 	if (platform.overlapPixel(sprite.position.x - (sprite.width / 2) - 20, sprite.position.y - sprite.height / 2)) {
-		if (sprite === stone) stone.displace(player);
-		
+		if (sprite === stone) sprite.displace(player);
+
 		sprite.velocity.y = 0;
 		sprite.position.x += 1;
-		
+
 		while (platform.overlapPixel(sprite.position.x - (sprite.width / 2) - 20, sprite.position.y - sprite.height / 2)) {
 			sprite.position.x += 1;
 		}
@@ -542,12 +543,12 @@ function checkOverlap(sprite, platform) {
 
 	// Check if the sprite's right side is hitting a platform
 	if (platform.overlapPixel(sprite.position.x + (sprite.width / 2) + 20, sprite.position.y - sprite.height / 2)) {
-		if (sprite === stone) stone.displace(player);
-		
+		if (sprite === stone) sprite.displace(player);
+
 		sprite.velocity.y = 0;
 		sprite.position.x -= 1;
 		//sprite.position.y = sprite.position.y;
-		
+
 		while (platform.overlapPixel(sprite.position.x + (sprite.width / 2) + 20, sprite.position.y - sprite.height / 2)) {
 			sprite.position.x -= 1;
 		}

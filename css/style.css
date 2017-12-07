@@ -1,213 +1,211 @@
 * {
-    box-sizing: border-box;
-    margin: 0px;
-    padding: 0px;
+	box-sizing: border-box;
+	margin: 0px;
+	padding: 0px;
 }
 
 body {
-    overflow: hidden;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    height: 100vh;
-    width: 100vw;
-    background: #262626;
-    font-family: 'Amatic SC', cursive;
-    -webkit-font-smoothing: antialiased;
+	overflow: hidden;
+	display: flex;
+	justify-content: center;
+	align-items: center;
+	height: 100vh;
+	width: 100vw;
+	background: #262626;
+	font-family: 'Amatic SC', cursive;
+	-webkit-font-smoothing: antialiased;
 	-moz-osx-font-smoothing: grayscale;
 }
 
 
 /* START SCREEN */
-#start-screen{
-    position: absolute;
-    z-index: 500;
-    width: 100vw;
-    height: 100vh;
-    background: #0e0312;
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    align-items: center;
+
+#start-screen {
+	position: absolute;
+	z-index: 500;
+	width: 100vw;
+	height: 100vh;
+	background: #0e0312;
+	display: flex;
+	flex-direction: column;
+	justify-content: center;
+	align-items: center;
 }
 
-#start-screen.remove{
-    display: none;
+#start-screen.remove {
+	display: none;
 }
 
-h1{
-    color: white;
-    font-size: 150px;
-    font-weight: 400;
-    margin-bottom: 0px;
-    padding-bottom: 0px;
-    text-shadow: 0px 0px 55px rgba(255, 255, 255, 0.35);
+h1 {
+	color: white;
+	font-size: 150px;
+	font-weight: 400;
+	margin-bottom: 0px;
+	padding-bottom: 0px;
+	text-shadow: 0px 0px 55px rgba(255, 255, 255, 0.35);
 }
 
-h2{
-    font-family: 'Open Sans Condensed', sans-serif;
-    font-weight: 300;
+h2 {
+	font-family: 'Open Sans Condensed', sans-serif;
+	font-weight: 300;
 }
 
-h2, p{
-    color: white;
+h2, p {
+	color: white;
 }
 
-p{  
-    font-size: 32px;
-    font-weight: 400;
-    margin-top: 150px;
+p {
+	font-size: 32px;
+	font-weight: 400;
+	margin-top: 150px;
 }
 
-p span{
-    font-weight: 700;
-    font-size: 40px;
-    text-transform: uppercase;
+p span {
+	font-weight: 700;
+	font-size: 40px;
+	text-transform: uppercase;
 }
 
 
 /* LOADING SCREEN */
-#p5_loading{
-    position: absolute;
-    z-index: 100;
+
+#p5_loading {
+	position: absolute;
+	z-index: 100;
 }
 
 /* UI */
+
 #ui {
-    width: 100%;
-    height: 100%;
-    position: absolute;
+	width: 100%;
+	height: 100%;
+	position: absolute;
 }
 
 #score {
-    position: absolute;
-    bottom: 80px;
-    left: 100px;
-    color: white;
-    font-size: 62px;
+	position: absolute;
+	bottom: 80px;
+	left: 100px;
+	color: white;
+	font-size: 62px;
 }
 
-#score.complete{
-    animation-name: levelcomplete;
-    animation-delay: 1s; 
-    animation-duration: 2s;
-    animation-fill-mode: forwards;    
+#score.complete {
+	animation-name: levelcomplete;
+	animation-delay: 1s;
+	animation-duration: 2s;
+	animation-fill-mode: forwards;
 }
 
-@keyframes levelcomplete{
-    25%  {
-        opacity: 0;
-    }
-    50%  {
-        opacity: 1;
-    }
-    75%  {
-        opacity: 0;
-    }
-    100% {
-        opacity: 1;
-    }
+@keyframes levelcomplete {
+	25% {
+		opacity: 0;
+	}
+	50% {
+		opacity: 1;
+	}
+	75% {
+		opacity: 0;
+	}
+	100% {
+		opacity: 1;
+	}
 }
 
-#player-score{
-    font-size: 62px;
-    font-weight: 100;
+#player-score {
+	font-size: 62px;
+	font-weight: 100;
 }
 
 #keys {
-    font-family: 'Helvetica';
-    position: absolute;
-    bottom: -50px;
-    left: 0px;
-    color: white;
+	font-family: 'Helvetica';
+	position: absolute;
+	bottom: -50px;
+	left: 0px;
+	color: white;
 }
 
 #keys span {
-    margin: 0px 15px;
+	margin: 0px 15px;
 }
 
 #item-bag {
-    position: absolute;
-    right: 75px;
-    bottom: 75px;
-    width: 75px;
-    height: 75px;
+	position: absolute;
+	right: 75px;
+	bottom: 75px;
+	width: 75px;
+	height: 75px;
 }
 
 #game-overlay {
-    padding: 100px;
-    visibility: hidden;
-    width: 100%;
-    height: 100%;
-    background: rgba(0, 0, 0, 0.55);
+	padding: 100px;
+	visibility: hidden;
+	width: 100%;
+	height: 100%;
+	background: rgba(0, 0, 0, 0.55);
 }
 
 #game-overlay.active {
-    visibility: visible;
+	visibility: visible;
 }
 
-h3{
-    font-family: 'Amatic SC', cursive;
-    color: white;
-    font-size: 50px;
-    font-weight: 100;
+h3 {
+	font-family: 'Amatic SC', cursive;
+	color: white;
+	font-size: 50px;
+	font-weight: 100;
 }
 
-/*.list-container {
-    overflow-x: scroll;
-}*/
+.clues {
+	width: 1000px;
+	display: flex;
 
-.clues{
-    width: 1000px;
-    display: flex;
-    
 }
 
 .clue {
-    height: 150px;
-    margin-left: 10px;
-    width: 500px;
-    background: white;
+	height: 150px;
+	margin-left: 10px;
+	width: 500px;
+	background: white;
 }
 
 .clue:active {
-    background: yellow;
+	background: yellow;
 }
 
-.clue.toggled{
-    background: red;
+.clue.toggled {
+	background: red;
 }
-
 
 .clue-content {
-    position: absolute;
-    background: blue;
-    width: 90%;
-    height: 90%;
-    display: none;
+	position: absolute;
+	background: blue;
+	width: 90%;
+	height: 90%;
+	display: none;
 }
 
-#end-screen{
-    display: none;
-    position: absolute;
-    z-index: 500;
-    width: 100vw;
-    height: 100vh;
-    background: rgba(0, 0, 0, 0.50);
-    flex-direction: column;
-    justify-content: center;
-    align-items: center;
+#end-screen {
+	display: none;
+	position: absolute;
+	z-index: 500;
+	width: 100vw;
+	height: 100vh;
+	background: rgba(0, 0, 0, 0.50);
+	flex-direction: column;
+	justify-content: center;
+	align-items: center;
 }
 
-#end-screen h1{
-    font-size: 100px;
-    margin: 0px;
+#end-screen h1 {
+	font-size: 100px;
+	margin: 0px;
 }
 
-#end-screen h2{
-    margin: 0px;
+#end-screen h2 {
+	margin: 0px;
 }
 
-#end-screen.end{
-    display: flex;
+#end-screen.end {
+	display: flex;
 }
