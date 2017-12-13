@@ -19,8 +19,8 @@ document.addEventListener('keydown', function (event) {
 document.addEventListener('keydown', function (event) {
     if (event.which == 66) {
         gameOverlay.classList.add('active');
-        clueContent[0].classList.add('active');
-        clues[0].focus();
+        clueContent[lastClue].classList.add('active');
+        clues[lastClue].focus();
     } else if (event.which == 27) {
         gameOverlay.classList.remove('active');
     }
