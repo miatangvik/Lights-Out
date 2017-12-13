@@ -18,14 +18,14 @@ var platforms, items, interactables;
 // Things
 var foregroundFiller;
 var item2, bush3, stone, axe, ladder, tree, treeCut, note;
-var tip1, tip2, tip3;
+var tip1, tip2, tip3, tip4;
 
 // Images
 var platform1Img, platform2Img, platform3Img, platform4Img, platform5Img, platform6Img, platform7Img, platform8Img, platform9Img, platform10Img, platform11Img, platform12Img, platform13Img, platform14Img, platform15Img, platform16Img, platform17Img, platform18Img, platform19Img, platform20Img, platform21Img, platform22Img, platform23Img, platform24Img, platform25Img, platform26Img, platform27Img, platform28Img, platform29Img, platform30Img, platform31Img;
 
 var forestBackgroundImg, caveBackgroundImg, foregroundImg, foregroundFillerImg;
 var lightImg, stoneImg, axeImg, ladderImg, treeImg, treeCutImg, noteImg, signImg;
-var tip1Img, tip2Img, tip3Img;
+var tip1Img, tip2Img, tip3Img, tip4Img;
 var jumpImg, jumpAxeImg, preClimbImg;
 
 // Animations
@@ -105,6 +105,7 @@ function preload() {
 	tip1Img = loadImage("assets/controls/tip_1.png");
 	tip2Img = loadImage("assets/controls/tip_2.png");
 	tip3Img = loadImage("assets/controls/tip_3.png");
+	tip4Img = loadImage("assets/controls/tip_4.png");
     
     jumpImg = loadImage("assets/Animations/Jump/jump0001.png");
 	jumpAxeImg = loadImage("assets/Animations/Jump_axe/jumpaxe0002.png");
@@ -278,6 +279,9 @@ function setup() {
 
 	tip3 = createSprite(3000, -250);
 	tip3.addImage(tip3Img);
+    
+    tip4 = createSprite(3525, 925);
+    tip4.addImage(tip4Img);
 
 	ladder = createSprite(platformWidth * 8 - 75, 400);
 	ladder.addImage(ladderImg);
@@ -311,7 +315,7 @@ function setup() {
 	player.addAnimation("walkAxe", animateWalkAxe);
     player.addAnimation("chop", animateChop);
 
-	axe = createSprite(3000, 1031);
+	axe = createSprite(2800, 1031);
 	axe.addImage(axeImg);
 	interactables.add(axe);
 
@@ -505,7 +509,11 @@ function draw() {
 	}
     
     // Pause game when bag is opened
-    if (keyWentDown('B')){ 
+    if (keyWentDown('B')) {
+        if (tip4.removed == false) {
+            tip4.remove();
+        }
+        
         noLoop();
     }
     

@@ -31,7 +31,7 @@ for (var i = 0; i < clues.length; i++) {
 }
 
 function showClue(index) {
-    if (event.which == 39 && index < 4) {
+    if (event.which == 39 && index < clues.length - 1) {
         index++;
     } else if (event.which == 37 && index > 0) {
         index--;
