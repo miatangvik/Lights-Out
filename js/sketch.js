@@ -500,9 +500,21 @@ function draw() {
 			player.velocity.y -= 15;
 		}
 	}
-
-	drawSprites();
+    
+    // Pause game when bag is opened
+    if (keyWentDown('B')){ 
+        noLoop();
+    }
+    
+    drawSprites();
 }
+
+// Continue game when bag is closed
+document.addEventListener("keydown", function () {
+    if (event.which == 27) {
+        loop();
+    }
+});
 
 function checkOverlap(sprite, platform) {
 
@@ -522,7 +534,6 @@ function checkOverlap(sprite, platform) {
 	if (platform.overlapPixel(sprite.position.x, sprite.position.y - sprite.height / 2)) {
 		sprite.velocity.y = 0;
 		sprite.position.y += 1;
-		//sprite.position.x = sprite.position.x;
 
 		while (platform.overlapPixel(sprite.position.x, sprite.position.y - sprite.height / 2)) {
 			sprite.position.y += 1;
@@ -547,7 +558,6 @@ function checkOverlap(sprite, platform) {
 
 		sprite.velocity.y = 0;
 		sprite.position.x -= 1;
-		//sprite.position.y = sprite.position.y;
 
 		while (platform.overlapPixel(sprite.position.x + (sprite.width / 2) + 20, sprite.position.y - sprite.height / 2)) {
 			sprite.position.x -= 1;

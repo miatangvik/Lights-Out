@@ -8,74 +8,31 @@ var clueContent = document.querySelectorAll('.clue-content');
 
 var lastClue = 0;
 
+// Remove start screen when user presses enter
 document.addEventListener('keydown', function (event) {
     if (event.which == 13) {
         startScreen.classList.add('remove');
     }
 });
 
+// Show bag when user presses B key and hide bag when user presses ESC key
 document.addEventListener('keydown', function (event) {
     if (event.which == 66) {
-        gameOverlay.classList.toggle('active');
+        gameOverlay.classList.add('active');
+        clues[0].focus();
+    } else if (event.which == 27) {
+        gameOverlay.classList.remove('active');
     }
 });
 
 for (var i = 0; i < clues.length; i++) {
-    clues[i].addEventListener('keydown', showClue(i));
+    clues[i].addEventListener('keydown', showClue.bind(null, i));
 }
 
-function showClue(hei) {
-    return function () {        
-        if (event.which == 39) {
-            hei++;
-            
-            /*clues[lastClue].tabIndex = -1;
-            clues[hei].tabIndex = 0;*/
-            
-            clues[lastClue].blur();
-            clues[hei].focus();
-            
-            lastClue = hei;
-        } else if (event.which == 37) {
-            hei--;
-            
-            /*clues[lastClue].tabIndex = -1;
-            clues[hei].tabIndex = 0;*/
-            
-            clues[lastClue].blur();
-            clues[hei].focus();
-            
-            lastClue = hei;
-        }
-        
-        
-        
-        /*if (lastClue != undefined) {
-            //clueContent[lastClue].style.zIndex = '0';
-            clues[lastClue].tabIndex = -1;
-        }
-        
-        if (event.which == 39) {
-            hei +=1;
-            console.log("new index " + hei);
-            clues[hei].focus();
-            clues[hei].tabIndex = 0;
-            console.log("lastClue: " + lastClue);
-            lastClue = hei;
-        } else if (event.which == 37) {
-            hei -= 1;
-            console.log("new index " + hei);
-            clues[hei].focus();
-            clues[hei].tabIndex = 0;
-            console.log("lastClue: " + lastClue);
-            lastClue = hei;
-        }*/
-                
-        
-        
-        
-        
-        //clueContent[index].style.zIndex += '1';
-        
-    };
+function showClue(index) {
+    if (event.which == 39 && index < 4) {
+        clues[index + 1].focus();
+    } else if (event.which == 37 && index > 0) {
+        clues[index - 1].focus();
+    }
 }
