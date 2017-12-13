@@ -19,6 +19,7 @@ body {
 
 
 /* START SCREEN */
+
 #start-screen {
 	position: absolute;
 	z-index: 500;
@@ -34,9 +35,6 @@ body {
 #start-screen.remove {
 	display: none;
 }
-/* START SCREEN END */
-
-
 
 h1 {
 	color: white;
@@ -56,7 +54,7 @@ h2, p {
 	color: white;
 }
 
-score p {
+p {
 	font-size: 32px;
 	font-weight: 400;
 	margin-top: 150px;
@@ -70,13 +68,14 @@ p span {
 
 
 /* LOADING SCREEN */
+
 #p5_loading {
 	position: absolute;
 	z-index: 100;
 }
 
-
 /* UI */
+
 #ui {
 	width: 100%;
 	height: 100%;
@@ -138,19 +137,12 @@ p span {
 	height: 75px;
 }
 
-
-/* GAME OVERLAY */
-
 #game-overlay {
-    position: relative;
-    z-index: 1000;
-    display: flex;
-    flex-direction: column;
-	padding: 150px;
+	padding: 100px;
 	visibility: hidden;
 	width: 100%;
 	height: 100%;
-	background: rgba(0, 0, 0, 0.6);
+	background: rgba(0, 0, 0, 0.55);
 }
 
 #game-overlay.active {
@@ -160,110 +152,39 @@ p span {
 h3 {
 	font-family: 'Amatic SC', cursive;
 	color: white;
-	font-size: 72px;
+	font-size: 50px;
 	font-weight: 100;
-    margin-bottom: 25px;
 }
 
 .clues {
-    height: 150px;
+	width: 1000px;
 	display: flex;
-    margin-bottom: 100px;
+
 }
 
 .clue {
-	margin-left: 20px;
+	height: 150px;
+	margin-left: 10px;
 	width: 500px;
-	background: rgb(0, 0, 0);
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    border-radius: 3px;
-    font-size: 26px;
-    color: white;
-    opacity: .6;
-}
-
-.clue.locked{
-    background: rgb(0, 0, 0);
-    background-image: url(../assets/locked_clue.png);
-    background-size: 65px;
-    background-repeat: no-repeat;
-    background-position: center;
-}
-
-.clue:nth-child(1){
-    margin-left: 0px;
+	background: white;
 }
 
 .clue:focus {
-    opacity: 1;
-	transform: scale(1.1);
-    border: none;
-    outline: none;
+	background-color: yellow;
 }
 
-#clue-list-content{
-    display: flex;
-    flex-direction: column;
-    position: relative;
-    height: 100%;
+.clue.toggled {
+	background: red;
 }
 
 .clue-content {
-    color: white;
-    width: 100%;
-    height: 100%;
-    position: absolute;
-    display: none;
-    justify-content: space-between;
+	position: absolute;
+	background: blue;
+	width: 90%;
+	height: 90%;
+	display: none;
 }
 
-.clue-content h4{
-    display: inline-block;
-    font-size: 40px;
-    margin-bottom: 25px;
-}
-
-.clue-content p{
-    font-size: 20px;
-    line-height: 35px;
-    font-family: 'Open Sans Condensed', sans-serif;
-    max-width: 650px;
-}
-
-.clue-content.active{
-    display: flex;
-}
-
-.clue-image{
-    height: 300px;
-    width: 600px;
-    background-size: contain;
-    background-position: center;
-    background-repeat: no-repeat;
-}
-
-#clue1{
-    background-image:url(../assets/old_note_clue.png);
-}
-
-#clue2{
-    background-image: url(../assets/oldshoe_clue.png);
-}
-
-.clue-image.locked{
-    background-image:url(../assets/locked_clue.png);  
-}
-
-
-
-
-
-
-
-
-/* END GAME SCREEN */
 #end-screen {
 	display: none;
 	position: absolute;

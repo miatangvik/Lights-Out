@@ -19,7 +19,6 @@ document.addEventListener('keydown', function (event) {
 document.addEventListener('keydown', function (event) {
     if (event.which == 66) {
         gameOverlay.classList.add('active');
-        clueContent[0].classList.add('active');
         clues[0].focus();
     } else if (event.which == 27) {
         gameOverlay.classList.remove('active');
@@ -32,14 +31,8 @@ for (var i = 0; i < clues.length; i++) {
 
 function showClue(index) {
     if (event.which == 39 && index < 4) {
-        index++;
+        clues[index + 1].focus();
     } else if (event.which == 37 && index > 0) {
-        index--;
+        clues[index - 1].focus();
     }
-    
-    clues[index].focus();
-    clueContent[lastClue].classList.remove('active');
-    clueContent[index].classList.add('active');
-        
-    lastClue = index;
 }

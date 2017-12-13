@@ -17,21 +17,20 @@ var platforms, items, interactables;
 
 // Things
 var foregroundFiller;
-var item2, stone, axe, ladder, tree, treeCut, note;
-var bush1, bush2, bush3, bush4;
+var item2, bush3, stone, axe, ladder, tree, treeCut, note;
 var tip1, tip2, tip3;
 
 // Images
 var platform1Img, platform2Img, platform3Img, platform4Img, platform5Img, platform6Img, platform7Img, platform8Img, platform9Img, platform10Img, platform11Img, platform12Img, platform13Img, platform14Img, platform15Img, platform16Img, platform17Img, platform18Img, platform19Img, platform20Img, platform21Img, platform22Img, platform23Img, platform24Img, platform25Img, platform26Img, platform27Img, platform28Img, platform29Img, platform30Img, platform31Img;
 
 var forestBackgroundImg, caveBackgroundImg, foregroundImg, foregroundFillerImg;
-var jumpImg, jumpAxeImg, preClimbImg;
-var lightImg, stoneImg, axeImg, ladderImg, treeImg, treeCutImg, noteImg;
-var signImg, bush1Img, bush2Img, bush3Img, bush4Img;
+var lightImg, stoneImg, axeImg, ladderImg, treeImg, treeCutImg, noteImg, signImg;
 var tip1Img, tip2Img, tip3Img;
+var jumpImg, jumpAxeImg, preClimbImg;
 
 // Animations
-var animateIdle, animateWalk, animatePush, animateClimb, animateIdleAxe, animateWalkAxe;
+var animateBush1, animateBush2;
+var animateIdle, animateWalk, animatePush, animateClimb, animateIdleAxe, animateWalkAxe, animateChop;
 
 // Score
 var score = 0;
@@ -91,42 +90,47 @@ function preload() {
 	foregroundImg = loadImage("assets/foreground.png");
 	foregroundFillerImg = loadImage("assets/holefiller_overlays.png");
 
-	jumpImg = loadImage("assets/Animations/Jump/jump0001.png");
-	jumpAxeImg = loadImage("assets/Animations/Jump_axe/jumpaxe0002.png");
-	preClimbImg = loadImage("assets/Animations/Pre-climb/preclimb0001.png");
-
 	lightImg = loadImage("assets/LightemOne.png");
 	stoneImg = loadImage("assets/item_stone.png");
 	axeImg = loadImage("assets/axe_ground.png");
 	ladderImg = loadImage("assets/ladder.png");
 	treeImg = loadImage("assets/Trees/tree_black.png")
-	treeCutImg = loadImage("assets/Trees/tree_black.png");
+	treeCutImg = loadImage("assets/Trees/tree_black_cut.png");
 	noteImg = loadImage("assets/item_note.png");
-
 	signImg = loadImage("assets/map_sign.png");
-	bush1Img = loadImage("assets/busheskt/Bush_1/Bush_1_0001.png");
-	bush2Img = loadImage("assets/busheskt/Bush_2/Bush_2_0001.png");
+    
 	bush3Img = loadImage("assets/busheskt/Bush_3.png");
-	bush4Img = loadImage("assets/busheskt/Bush_4/Bush_4_0002.png");
 
 	// Tips
 	tip1Img = loadImage("assets/controls/tip_1.png");
 	tip2Img = loadImage("assets/controls/tip_2.png");
 	tip3Img = loadImage("assets/controls/tip_3.png");
+    
+    jumpImg = loadImage("assets/Animations/Jump/jump0001.png");
+	jumpAxeImg = loadImage("assets/Animations/Jump_axe/jumpaxe0002.png");
+	preClimbImg = loadImage("assets/Animations/Pre-climb/preclimb0001.png");
 
 	// Preload animations
+    animateBush1 = loadAnimation("assets/busheskt/Bush_1/bush1.png", "assets/busheskt/Bush_1/bush1_eyes.png");
+    animateBush2 = loadAnimation("assets/busheskt/Bush_2/bush2_eyes.png", "assets/busheskt/Bush_2/bush2.png");
+        
 	animateIdle = loadAnimation("assets/Animations/Idle/idle0001.png", "assets/Animations/Idle/idle0002.png");
 	animateWalk = loadAnimation("assets/Animations/Walk/walk0001.png", "assets/Animations/Walk/walk0002.png");
 	animatePush = loadAnimation("assets/Animations/Walk_push/walkpush0001.png", "assets/Animations/Walk_push/walkpush0002.png");
 	animateClimb = loadAnimation("assets/Animations/Climb/climb0001.png", "assets/Animations/Climb/climb0004.png");
 	animateIdleAxe = loadAnimation("assets/Animations/Idle_axe/idleaxe0001.png", "assets/Animations/Idle_axe/idleaxe0002.png");
 	animateWalkAxe = loadAnimation("assets/Animations/Walk_axe/walkaxe0001.png", "assets/Animations/Walk_axe/walkaxe0002.png");
+    animateChop = loadAnimation("assets/Animations/Chop/chop0001.png", "assets/Animations/Chop/chop0002.png");
 
+    animateBush1.frameDelay = 110;
+    animateBush2.frameDelay = 70;
+    
 	animateIdle.frameDelay = 55;
 	animateWalk.frameDelay = 10;
 	animatePush.frameDelay = 10;
 	animateClimb.frameDelay = 10;
 	animateIdleAxe.frameDelay = 55;
+    animateChop.frameDelay = 14;
 }
 
 function setup() {
@@ -259,14 +263,11 @@ function setup() {
 
 	// Add bushes
 	bush1 = createSprite(1550, -200);
-	bush1.addImage(bush1Img);
-
+    bush1.addAnimation("bush1", animateBush1);
+    
 	bush3 = createSprite(2500, -250);
 	bush3.addImage(bush3Img);
 	interactables.add(bush3);
-
-	bush4 = createSprite(3800, -210);
-	bush4.addImage(bush4Img);
 
 	// Screen tips
 	tip1 = createSprite(700, -250);
@@ -308,6 +309,7 @@ function setup() {
 	player.addAnimation("climb", animateClimb);
 	player.addAnimation("idleAxe", animateIdleAxe);
 	player.addAnimation("walkAxe", animateWalkAxe);
+    player.addAnimation("chop", animateChop);
 
 	axe = createSprite(3000, 1031);
 	axe.addImage(axeImg);
@@ -321,7 +323,7 @@ function setup() {
 	foregroundFiller.addImage(foregroundFillerImg);
 
 	bush2 = createSprite(1750, -175);
-	bush2.addImage(bush2Img);
+    bush2.addAnimation("bush2", animateBush2);
 
 	var item1 = createSprite(1000, 700);
 	item1.addImage(lightImg);
@@ -337,8 +339,6 @@ function setup() {
 }
 
 function draw() {
-	background("#000000");
-
 	// Set camera position
 	camera.position.y = player.position.y - 180;
 	camera.zoom = .65;
@@ -368,12 +368,15 @@ function draw() {
 	// Show end screen if level is complete and player is at the end of the level
 	if (player.position.x >= 5000 && score == 2) {
 		endScreen.classList.add('end');
+        noLoop();
 	}
 
-	if (holdingAxe) {
-		player.changeAnimation("idleAxe");
-	} else {
-		player.changeAnimation("idle");
+	if (!holdingAxe) {
+        player.changeAnimation("idle");
+	} else if (woodChopSound.isPlaying()) {
+        player.changeAnimation("chop");
+    } else {
+        player.changeAnimation("idleAxe");
 	}
 
 	if (jumping) {
@@ -592,7 +595,6 @@ function interact(player, interactable) {
 			holdingAxe = true;
 		} else if (interactable === tree && holdingAxe) {
 			woodChopSound.play();
-
 			setTimeout(function () {
 				interactable.remove();
 				holdingAxe = false;
