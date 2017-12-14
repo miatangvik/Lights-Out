@@ -343,6 +343,8 @@ function setup() {
 }
 
 function draw() {
+	background("#000000");
+	
 	// Set camera position
 	camera.position.y = player.position.y - 180;
 	camera.zoom = .65;
