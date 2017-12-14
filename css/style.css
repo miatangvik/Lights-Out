@@ -24,15 +24,22 @@ body {
 	z-index: 500;
 	width: 100vw;
 	height: 100vh;
-	background: #0e0312;
+	background: #221626;
 	display: flex;
 	flex-direction: column;
 	justify-content: center;
 	align-items: center;
+    background-image: url(../assets/start_screen_background.jpg);
+    background-size: cover;
+    background-position: center;
+    background-blend-mode: soft-light;
+    opacity: 1;
+    transition-duration: .5s;
 }
 
 #start-screen.remove {
-	display: none;
+    opacity: 0;
+	visibility: hidden;
 }
 /* START SCREEN END */
 
@@ -54,6 +61,16 @@ h2 {
 
 h2, p {
 	color: white;
+}
+
+#start-screen h1{
+    letter-spacing: 10px;
+    margin-top: 0px;
+    margin-bottom: 50px;
+}
+
+#start-screen p{
+    font-size: 32px;
 }
 
 score p {
