@@ -1,7 +1,7 @@
 # Lights Out
 Temaoppgave 12 på Interaksjonsdesign ved Høyskolen Kristiania
 
-Laget av Joachim Hauge og Mia Tangvik
+Laget av [Joachim Hauge](https://github.com/Haugesen) og [Mia Tangvik](https://github.com/miatangvik)
 
 https://miatangvik.github.io/Lights-Out
 ## How to play
